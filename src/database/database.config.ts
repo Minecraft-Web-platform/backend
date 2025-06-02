@@ -1,4 +1,5 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { User } from 'src/users/user.entity';
 
 export const typeOrmOptions: TypeOrmModuleOptions = {
   type: 'mysql',
@@ -7,6 +8,6 @@ export const typeOrmOptions: TypeOrmModuleOptions = {
   username: 'u4115_tb4WLWoir9',
   password: 'xUGKheuTLhzeZIRvL=u7I^3z',
   database: 's4115_minecraft',
-  entities: [],
+  entities: [User],
   synchronize: true,
 };
