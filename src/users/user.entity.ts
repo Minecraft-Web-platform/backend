@@ -2,11 +2,11 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 type Data = {
   password: string;
-  last_authenticated_date: Date;
+  last_authenticated_date: string;
   login_tries: number;
-  last_kicked_date: Date;
+  last_kicked_date: string;
   online_account: string;
-  registration_date: Date;
+  registration_date: string;
 };
 
 @Entity()
@@ -17,8 +17,11 @@ export class User {
   @Column()
   username: string;
 
-  @Column('username_lower')
-  usernameLower: string;
+  @Column()
+  username_lower: string;
+
+  @Column()
+  uuid: string;
 
   @Column()
   data: Data;
