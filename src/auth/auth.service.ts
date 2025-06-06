@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { CreateUserDTO } from './dtos/create-user.dto';
 import { hash } from 'bcrypt';
 import { UsersService } from 'src/users/users.service';
+import { RegisterDto } from './dtos/register.dto';
 
 @Injectable()
 export class AuthService {
   constructor(private readonly usersService: UsersService) {}
 
-  public async register(user: CreateUserDTO) {
+  public async register(user: RegisterDto) {
     const hashedPassword = await hash(user.password, 12);
     const lowerUsername = user.username.toLowerCase();
     const dataForNewUser = {
@@ -20,8 +20,8 @@ export class AuthService {
         last_kicked_date: new Date(0).toISOString(),
         online_account: 'UNKNOWN',
         registration_date: new Date().toISOString(),
-      }
-    }
+      },
+    };
 
     return this.usersService.create(dataForNewUser);
   }

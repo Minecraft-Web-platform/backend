@@ -32,7 +32,7 @@ export class UsersService {
     return this.usersRepository.delete({ id });
   }
 
-  private async generateOfflineUUID(username) {
+  private async generateOfflineUUID(username: string): Promise<string> {
     const name = 'OfflinePlayer:' + username;
     const hash = crypto.createHash('md5').update(name, 'utf8').digest();
 
@@ -42,11 +42,11 @@ export class UsersService {
     const hex = hash.toString('hex');
 
     return [
-        hex.substring(0, 8),
-        hex.substring(8, 12),
-        hex.substring(12, 16),
-        hex.substring(16, 20),
-        hex.substring(20),
+      hex.substring(0, 8),
+      hex.substring(8, 12),
+      hex.substring(12, 16),
+      hex.substring(16, 20),
+      hex.substring(20),
     ].join('-');
   }
 }

@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-type Data = {
+export type UserDataField = {
   password: string;
   last_authenticated_date: string;
   login_tries: number;
@@ -24,5 +24,5 @@ export class User {
   uuid: string;
 
   @Column()
-  data: Data;
+  data: UserDataField;
 }
