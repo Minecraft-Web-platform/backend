@@ -1,8 +1,11 @@
+import crypto from 'crypto';
+
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from './user.entity';
 import { Repository } from 'typeorm';
-import crypto from 'crypto';
+
+import { User } from './user.entity';
+import { CreateUserType } from 'src/auth/types/create-user.type';
 
 @Injectable()
 export class UsersService {
@@ -19,7 +22,7 @@ export class UsersService {
     return this.usersRepository.findOneBy({ username });
   }
 
-  public async create(userData: Omit<Omit<User, 'id'>, 'uuid'>) {
+  public async create(userData: CreateUserType): Promise<User> {
     const uuid = await this.generateOfflineUUID(userData.username);
 
     return this.usersRepository.create({
@@ -28,8 +31,10 @@ export class UsersService {
     });
   }
 
-  public async delete(id: number) {
-    return this.usersRepository.delete({ id });
+  public async delete(id: number): Promise<boolean> {
+    const deletionResult = await this.usersRepository.delete({ id });
+
+    return !!deletionResult.affected;
   }
 
   private async generateOfflineUUID(username: string): Promise<string> {
