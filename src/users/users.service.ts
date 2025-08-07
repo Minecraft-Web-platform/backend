@@ -6,9 +6,10 @@ import { Repository } from 'typeorm';
 
 import { User } from './user.entity';
 import { CreateUserType } from 'src/auth/types/create-user.type';
+import { UsersServiceContract } from './users.service.contract';
 
 @Injectable()
-export class UsersService {
+export class UsersService implements UsersServiceContract {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
