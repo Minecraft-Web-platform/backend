@@ -1,5 +1,5 @@
 import { CreateUserType } from 'src/auth/types/create-user.type';
-import { User } from './user.entity';
+import { User } from './entities/user.entity';
 
 export interface UsersServiceContract {
   getAll(): Promise<User[]>;

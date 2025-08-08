@@ -1,4 +1,5 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { ConfirmationCode } from './confirmation-code.entity';
 
 export type UserDataField = {
   password: string;
@@ -25,4 +26,9 @@ export class User {
 
   @Column()
   data: UserDataField;
+
+  @OneToMany(() => ConfirmationCode, (code) => code.user, {
+    cascade: true,
+  })
+  codes: ConfirmationCode[];
 }
