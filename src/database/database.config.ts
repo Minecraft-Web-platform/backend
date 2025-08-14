@@ -1,4 +1,5 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { ConfirmationCode } from 'src/users/entities/confirmation-code.entity';
 import { User } from 'src/users/entities/user.entity';
 
 export const typeOrmOptions: TypeOrmModuleOptions = {
@@ -8,6 +9,6 @@ export const typeOrmOptions: TypeOrmModuleOptions = {
   username: 'u4115_tb4WLWoir9',
   password: 'xUGKheuTLhzeZIRvL=u7I^3z',
   database: 's4115_minecraft',
-  entities: [User],
-  synchronize: true,
+  entities: [User, ConfirmationCode],
+  synchronize: false,
 };

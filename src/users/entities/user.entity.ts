@@ -10,7 +10,7 @@ export type UserDataField = {
   registration_date: string;
 };
 
-@Entity()
+@Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
@@ -24,11 +24,11 @@ export class User {
   @Column()
   uuid: string;
 
-  @Column()
+  @Column({ type: 'simple-json' })
   data: UserDataField;
 
   @OneToMany(() => ConfirmationCode, (code) => code.user, {
     cascade: true,
   })
-  codes: ConfirmationCode[];
+  codes?: ConfirmationCode[];
 }

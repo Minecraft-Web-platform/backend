@@ -20,7 +20,7 @@ export class UsersService implements UsersServiceContract {
   }
 
   public async getByUsername(username: string): Promise<User | null> {
-    return this.usersRepository.findOneBy({ username });
+    return this.usersRepository.findOneBy({ username_lower: username });
   }
 
   public async create(userData: CreateUserType): Promise<User> {
@@ -29,6 +29,7 @@ export class UsersService implements UsersServiceContract {
     return this.usersRepository.create({
       ...userData,
       uuid,
+      codes: [],
     });
   }
 

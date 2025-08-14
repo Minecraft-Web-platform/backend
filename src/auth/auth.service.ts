@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { hash } from 'bcrypt';
 import { UsersService } from 'src/users/users.service';
 import { RegisterDto } from './dtos/register.dto';
+import { ConfirmationCode } from 'src/users/entities/confirmation-code.entity';
 
 @Injectable()
 export class AuthService {
@@ -10,9 +11,11 @@ export class AuthService {
   public async register(user: RegisterDto) {
     const hashedPassword = await hash(user.password, 12);
     const lowerUsername = user.username.toLowerCase();
+    const codes: ConfirmationCode[] = [];
     const dataForNewUser = {
       username: user.username,
       username_lower: lowerUsername,
+      codes,
       data: {
         password: hashedPassword,
         login_tries: 0,
