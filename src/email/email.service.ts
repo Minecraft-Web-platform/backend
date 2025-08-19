@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import nodemailer, { Transporter } from 'nodemailer';
+import { Transporter, createTransport } from 'nodemailer';
 
 import { EmailServiceContract } from './email.service.contract';
 import { MailTemplateStrategy } from './strategies/mail-template.strategy';
@@ -9,7 +9,7 @@ export class EmailService implements EmailServiceContract {
   private readonly transporter: Transporter;
 
   constructor() {
-    this.transporter = nodemailer.createTransport({});
+    this.transporter = createTransport({});
   }
 
   async send(to: string, mailTemplate: MailTemplateStrategy): Promise<void> {

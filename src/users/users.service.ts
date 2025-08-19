@@ -30,6 +30,15 @@ export class UsersService implements UsersServiceContract {
     return this.usersRepository.findOneBy({ username_lower: usernameLower });
   }
 
+  /**
+   *
+   * @param {string} email - email of the user
+   * @returns { User | null }
+   */
+  public async getByEmail(email: string): Promise<User | null> {
+    return this.usersRepository.findOneBy({ email });
+  }
+
   public async create(userData: CreateUserType): Promise<User> {
     const uuid = await this.generateOfflineUUID(userData.username);
 

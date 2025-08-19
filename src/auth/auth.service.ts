@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { compare, hash } from 'bcrypt';
 import { UsersService } from 'src/users/users.service';
 import { RegisterDto } from './dtos/register.dto';
@@ -7,15 +7,21 @@ import { LoginDto } from './dtos/login.dto';
 import { OwnJwtService } from 'src/own-jwt/own-jwt.service';
 import { JwtPayload } from 'src/own-jwt/types/payload.type';
 import { TokenPair } from './types/token-pair.type';
+import { User } from 'src/users/entities/user.entity';
+import { AuthServiceContract } from './auth.service.contract';
+import { EmailService } from 'src/email/email.service';
+import { ConfirmCodeService } from 'src/users/confirm-code.service';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements AuthServiceContract {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: OwnJwtService,
+    private readonly emailService: EmailService,
+    private readonly confirmCodeService: ConfirmCodeService,
   ) {}
 
-  public async register(user: RegisterDto) {
+  public async register(user: RegisterDto): Promise<User> {
     const hashedPassword = await hash(user.password, 12);
     const lowerUsername = user.username.toLowerCase();
     const codes: ConfirmationCode[] = [];
@@ -23,7 +29,7 @@ export class AuthService {
       username: user.username,
       username_lower: lowerUsername,
       codes,
-      email: user.email,
+      email: null,
       emailIsConfirmed: false,
       data: {
         password: hashedPassword,
@@ -64,5 +70,19 @@ export class AuthService {
       accessToken,
       refreshToken,
     };
+  }
+
+  public async initEmailConfirmation(email: string, username: string): Promise<void> {
+    const userInDB = await this.usersService.getByUsername(username);
+
+    if (!userInDB) {
+      throw new NotFoundException('The user was not found');
+    }
+
+    // code -> mail sending
+  }
+
+  public async confirmEmail(code: string): Promise<void> {
+    throw new Error('Method not implemented.');
   }
 }
