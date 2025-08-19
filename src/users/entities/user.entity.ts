@@ -21,6 +21,12 @@ export class User {
   @Column()
   username_lower: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  email: string | null;
+
+  @Column({ default: false })
+  emailIsConfirmed: boolean;
+
   @Column()
   uuid: string;
 

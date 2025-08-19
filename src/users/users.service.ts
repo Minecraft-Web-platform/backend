@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { createHash } from 'crypto';
 
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -19,18 +19,27 @@ export class UsersService implements UsersServiceContract {
     return this.usersRepository.find();
   }
 
+  /**
+   *
+   * @param {string} username - username or username_lower
+   * @returns { User | null }
+   */
   public async getByUsername(username: string): Promise<User | null> {
-    return this.usersRepository.findOneBy({ username_lower: username });
+    const usernameLower = username.toLowerCase();
+
+    return this.usersRepository.findOneBy({ username_lower: usernameLower });
   }
 
   public async create(userData: CreateUserType): Promise<User> {
     const uuid = await this.generateOfflineUUID(userData.username);
 
-    return this.usersRepository.create({
+    const newUser = this.usersRepository.create({
       ...userData,
       uuid,
       codes: [],
     });
+
+    return this.usersRepository.save(newUser);
   }
 
   public async delete(id: number): Promise<boolean> {
@@ -41,7 +50,7 @@ export class UsersService implements UsersServiceContract {
 
   private async generateOfflineUUID(username: string): Promise<string> {
     const name = 'OfflinePlayer:' + username;
-    const hash = crypto.createHash('md5').update(name, 'utf8').digest();
+    const hash = createHash('md5').update(name, 'utf8').digest();
 
     hash[6] = (hash[6] & 0x0f) | 0x30;
     hash[8] = (hash[8] & 0x3f) | 0x80;

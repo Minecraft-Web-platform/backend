@@ -1,14 +1,12 @@
 import { Module } from '@nestjs/common';
-import { JwtService } from './own-jwt.service';
+import { OwnJwtService } from './own-jwt.service';
 import { JwtModule } from '@nestjs/jwt';
 
 @Module({
-  providers: [JwtService],
+  providers: [OwnJwtService],
   imports: [
     JwtModule.register({
       global: true,
-      secret: 'hehehe',
-      signOptions: { expiresIn: '1h' },
     }),
   ],
 })
