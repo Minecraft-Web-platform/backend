@@ -1,17 +1,29 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { compare, hash } from 'bcrypt';
+
+import { AuthServiceContract } from './auth.service.contract';
+
 import { UsersService } from 'src/users/users.service';
-import { RegisterDto } from './dtos/register.dto';
-import { ConfirmationCode } from 'src/users/entities/confirmation-code.entity';
-import { LoginDto } from './dtos/login.dto';
 import { OwnJwtService } from 'src/own-jwt/own-jwt.service';
+import { ConfirmCodeService } from 'src/users/confirm-code.service';
+import { EmailService } from 'src/email/email.service';
+
+import { EmailConfirmationStrategy } from 'src/email/strategies/email-confirmation.strategy';
+
+import { RegisterDto } from './dtos/register.dto';
+import { LoginDto } from './dtos/login.dto';
+import { UserResponseDto } from 'src/users/dtos/user-response.dto';
+
 import { JwtPayload } from 'src/own-jwt/types/payload.type';
 import { TokenPair } from './types/token-pair.type';
-import { User } from 'src/users/entities/user.entity';
-import { AuthServiceContract } from './auth.service.contract';
-import { EmailService } from 'src/email/email.service';
-import { ConfirmCodeService } from 'src/users/confirm-code.service';
-import { EmailConfirmationStrategy } from 'src/email/strategies/email-confirmation.strategy';
+
+import { ConfirmationCode } from 'src/users/entities/confirmation-code.entity';
 
 @Injectable()
 export class AuthService implements AuthServiceContract {
@@ -22,7 +34,17 @@ export class AuthService implements AuthServiceContract {
     private readonly confirmCodeService: ConfirmCodeService,
   ) {}
 
-  public async register(user: RegisterDto): Promise<User> {
+  public async register(user: RegisterDto): Promise<UserResponseDto> {
+    const userInDB = await this.usersService.getByUsername(user.username);
+
+    if (userInDB) {
+      throw new ConflictException('The user with this username is already exists!');
+    }
+
+    if (user.password !== user.repeatPassword) {
+      throw new BadRequestException('The passwords do not match!');
+    }
+
     const hashedPassword = await hash(user.password, 12);
     const lowerUsername = user.username.toLowerCase();
     const codes: ConfirmationCode[] = [];
@@ -42,7 +64,9 @@ export class AuthService implements AuthServiceContract {
       },
     };
 
-    return this.usersService.create(dataForNewUser);
+    const createdUser = await this.usersService.create(dataForNewUser);
+
+    return new UserResponseDto(createdUser);
   }
 
   public async login(data: LoginDto): Promise<TokenPair> {
@@ -107,5 +131,15 @@ export class AuthService implements AuthServiceContract {
 
     this.confirmCodeService.deactivateCode(username, 'email_confirmation');
     this.usersService.update(username, { emailIsConfirmed: true });
+  }
+
+  public async getInfoAboutMe(username: string): Promise<UserResponseDto> {
+    const userInDB = await this.usersService.getByUsername(username);
+
+    if (!userInDB) {
+      throw new NotFoundException('The user was not found');
+    }
+
+    return new UserResponseDto(userInDB);
   }
 }

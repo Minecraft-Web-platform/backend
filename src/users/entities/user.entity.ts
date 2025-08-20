@@ -6,6 +6,7 @@ export type UserDataField = {
   last_authenticated_date: string;
   login_tries: number;
   last_kicked_date: string;
+  last_ip?: string;
   online_account: string;
   registration_date: string;
 };
