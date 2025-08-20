@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { compare, hash } from 'bcrypt';
 import { UsersService } from 'src/users/users.service';
 import { RegisterDto } from './dtos/register.dto';
@@ -11,6 +11,7 @@ import { User } from 'src/users/entities/user.entity';
 import { AuthServiceContract } from './auth.service.contract';
 import { EmailService } from 'src/email/email.service';
 import { ConfirmCodeService } from 'src/users/confirm-code.service';
+import { EmailConfirmationStrategy } from 'src/email/strategies/email-confirmation.strategy';
 
 @Injectable()
 export class AuthService implements AuthServiceContract {
@@ -72,17 +73,39 @@ export class AuthService implements AuthServiceContract {
     };
   }
 
-  public async initEmailConfirmation(email: string, username: string): Promise<void> {
+  public async initEmailConfirmation(email: string, username: string): Promise<{ message: string }> {
     const userInDB = await this.usersService.getByUsername(username);
 
     if (!userInDB) {
       throw new NotFoundException('The user was not found');
     }
 
-    // code -> mail sending
+    const codeEntity = await this.confirmCodeService.createCode(username, 'email_confirmation');
+
+    const confirmEmailTemplate = new EmailConfirmationStrategy(codeEntity.code, username);
+    await this.emailService.send(email, confirmEmailTemplate);
+
+    return { message: 'Confirmation code sent' };
   }
 
-  public async confirmEmail(code: string): Promise<void> {
-    throw new Error('Method not implemented.');
+  public async confirmEmail(code: string, username: string): Promise<void> {
+    const userInDB = await this.usersService.getByUsername(username);
+
+    if (!userInDB) {
+      throw new NotFoundException('The user was not found');
+    }
+
+    const codeEntityInDB = userInDB.codes?.find((codeOfUser) => codeOfUser.type === 'email_confirmation');
+
+    if (!codeEntityInDB) {
+      throw new BadRequestException('Init the email confirmation first');
+    }
+
+    if (codeEntityInDB.code !== code) {
+      throw new BadRequestException('Invalid code confirmation');
+    }
+
+    this.confirmCodeService.deactivateCode(username, 'email_confirmation');
+    this.usersService.update(username, { emailIsConfirmed: true });
   }
 }

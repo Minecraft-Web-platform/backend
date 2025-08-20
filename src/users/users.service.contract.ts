@@ -8,5 +8,7 @@ export interface UsersServiceContract {
 
   create(userData: CreateUserType): Promise<User>;
 
+  update(username: string, dataToUpdate: Partial<Omit<User, 'username'>>);
+
   delete(id: number): Promise<boolean>;
 }

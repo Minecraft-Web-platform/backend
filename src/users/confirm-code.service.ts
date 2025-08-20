@@ -9,42 +9,33 @@ import { IConfirmCodeService } from './confirm-code.service.contract';
 export class ConfirmCodeService implements IConfirmCodeService {
   constructor(private readonly confirmCodeRepo: ConfirmCodeRepository) {}
 
-  async createCode(
-    userId: string,
-    type: ConfirmCodeActions,
-  ): Promise<ConfirmationCode> {
+  async createCode(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode> {
     const code = this.generateCode();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    const expires_at = new Date(Date.now() + 15 * 60 * 1000);
 
     return this.confirmCodeRepo.createCode({
-      userId,
+      player_username: username,
       type,
       code,
-      expiresAt,
+      expires_at,
       used: false,
     });
   }
 
-  async getCodesForUser(userId: string): Promise<ConfirmationCode[]> {
-    return this.confirmCodeRepo.findAllByUser(userId);
+  async getCodesForUser(username: string): Promise<ConfirmationCode[]> {
+    return this.confirmCodeRepo.findAllByUsername(username);
   }
 
-  async getCodeForUserAndType(
-    userId: string,
-    type: ConfirmCodeActions,
-  ): Promise<ConfirmationCode | null> {
-    return this.confirmCodeRepo.findOneByUserAndType(userId, type);
+  async getCodeForUserAndType(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode | null> {
+    return this.confirmCodeRepo.findOneByUserAndType(username, type);
   }
 
-  async deactivateCode(
-    userId: string,
-    type: ConfirmCodeActions,
-  ): Promise<void> {
-    await this.confirmCodeRepo.deactivate(userId, type);
+  async deactivateCode(username: string, type: ConfirmCodeActions): Promise<void> {
+    await this.confirmCodeRepo.deactivate(username, type);
   }
 
-  async deactivateAllCodes(userId: string): Promise<void> {
-    await this.confirmCodeRepo.deactivateAll(userId);
+  async deactivateAllCodes(username: string): Promise<void> {
+    await this.confirmCodeRepo.deactivateAll(username);
   }
 
   async cleanupExpiredCodes(): Promise<void> {

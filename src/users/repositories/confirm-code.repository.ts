@@ -12,15 +12,12 @@ export class ConfirmCodeRepository implements IConfirmCodeRepository {
     private readonly repo: Repository<ConfirmationCode>,
   ) {}
 
-  async findAllByUser(userId: string): Promise<ConfirmationCode[]> {
-    return this.repo.find({ where: { userId } });
+  async findAllByUsername(username: string): Promise<ConfirmationCode[]> {
+    return this.repo.find({ where: { player_username: username } });
   }
 
-  async findOneByUserAndType(
-    userId: string,
-    type: ConfirmCodeActions,
-  ): Promise<ConfirmationCode | null> {
-    return this.repo.findOne({ where: { userId, type } });
+  async findOneByUserAndType(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode | null> {
+    return this.repo.findOne({ where: { player_username: username, type } });
   }
 
   async createCode(data: Partial<ConfirmationCode>): Promise<ConfirmationCode> {
@@ -28,24 +25,24 @@ export class ConfirmCodeRepository implements IConfirmCodeRepository {
     return this.repo.save(newCode);
   }
 
-  async deactivate(userId: string, type: ConfirmCodeActions): Promise<void> {
+  async deactivate(username: string, type: ConfirmCodeActions): Promise<void> {
     await this.repo
       .createQueryBuilder()
       .update(ConfirmationCode)
       .set({ used: true })
       .where('userId = :userId AND type = :type AND used = false', {
-        userId,
+        player_username: username,
         type,
       })
       .execute();
   }
 
-  async deactivateAll(userId: string): Promise<void> {
+  async deactivateAll(username: string): Promise<void> {
     await this.repo
       .createQueryBuilder()
       .update(ConfirmationCode)
       .set({ used: true })
-      .where('userId = :userId AND used = false', { userId })
+      .where('userId = :userId AND used = false', { player_username: username })
       .execute();
   }
 

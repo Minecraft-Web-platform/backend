@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { Transporter, createTransport } from 'nodemailer';
 
 import { EmailServiceContract } from './email.service.contract';
@@ -10,14 +10,19 @@ export class EmailService implements EmailServiceContract {
 
   constructor() {
     this.transporter = createTransport({});
+    this.transporter.verify(() => console.log('\nEmailService: Cannot connect to the SMTP server\n'));
   }
 
   async send(to: string, mailTemplate: MailTemplateStrategy): Promise<void> {
-    await this.transporter.sendMail({
-      to: to,
-      subject: mailTemplate.getSubject(),
-      html: mailTemplate.getHTML(),
-      text: mailTemplate.getText(),
-    });
+    try {
+      await this.transporter.sendMail({
+        to: to,
+        subject: mailTemplate.getSubject(),
+        html: mailTemplate.getHTML(),
+        text: mailTemplate.getText(),
+      });
+    } catch {
+      throw new UnprocessableEntityException(`Email "${to}" is invalid or cannot be delivered`);
+    }
   }
 }

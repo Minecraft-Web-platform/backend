@@ -51,6 +51,12 @@ export class UsersService implements UsersServiceContract {
     return this.usersRepository.save(newUser);
   }
 
+  public async update(username: string, dataToUpdate: Partial<Omit<User, 'username'>>) {
+    await this.usersRepository.update({ username }, dataToUpdate);
+
+    return this.usersRepository.findOne({ where: { username } });
+  }
+
   public async delete(id: number): Promise<boolean> {
     const deletionResult = await this.usersRepository.delete({ id });
 

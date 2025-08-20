@@ -1,26 +1,26 @@
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, ManyToOne, PrimaryColumn } from 'typeorm';
 import { User } from './user.entity';
 import { ConfirmCodeActions } from '../types/confirm-code-actions.type';
 
-@Entity()
+@Entity('confirmation_codes')
 export class ConfirmationCode {
-  @PrimaryGeneratedColumn('uuid')
-  id: string; //uuid v4
+  @PrimaryColumn('char', { length: 36 })
+  id: string; // UUID v4
 
-  @Column()
-  code: string; // 6 digits
+  @Column({ length: 255 })
+  player_username: string;
 
-  @Column()
+  @Column({ length: 6 })
+  code: string;
+
+  @Column({ length: 32 })
   type: ConfirmCodeActions;
-
-  @Column()
-  userId: string;
 
   @Column({ default: false })
   used: boolean;
 
   @Column({ type: 'datetime', nullable: true, default: null })
-  expiresAt?: Date;
+  expires_at?: Date;
 
   @ManyToOne(() => User, (user) => user.codes, { onDelete: 'CASCADE' })
   user: User;
