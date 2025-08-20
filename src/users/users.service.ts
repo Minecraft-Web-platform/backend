@@ -27,7 +27,7 @@ export class UsersService implements UsersServiceContract {
   public async getByUsername(username: string): Promise<User | null> {
     const usernameLower = username.toLowerCase();
 
-    return this.usersRepository.findOneBy({ username_lower: usernameLower });
+    return this.usersRepository.findOne({ where: { username_lower: usernameLower }, relations: ['codes'] });
   }
 
   /**

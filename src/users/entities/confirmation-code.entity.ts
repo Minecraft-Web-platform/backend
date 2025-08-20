@@ -1,4 +1,4 @@
-import { Column, Entity, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import { User } from './user.entity';
 import { ConfirmCodeActions } from '../types/confirm-code-actions.type';
 
@@ -23,5 +23,6 @@ export class ConfirmationCode {
   expires_at?: Date;
 
   @ManyToOne(() => User, (user) => user.codes, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'player_username', referencedColumnName: 'username' })
   user: User;
 }

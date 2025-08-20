@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 
 import { ConfirmCodeRepository } from './repositories//confirm-code.repository';
 import { ConfirmationCode } from './entities/confirmation-code.entity';
@@ -14,6 +15,7 @@ export class ConfirmCodeService implements IConfirmCodeService {
     const expires_at = new Date(Date.now() + 15 * 60 * 1000);
 
     return this.confirmCodeRepo.createCode({
+      id: uuidv4(),
       player_username: username,
       type,
       code,

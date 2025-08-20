@@ -34,7 +34,7 @@ export class AuthController {
   @HttpCode(200)
   @Post('confirm-email')
   @UseGuards(AccessTokenGuard)
-  public async confirmEmail(@Req() request: AuthenticatedRequest, @Body('confirmation-code') confirmCode: string) {
+  public async confirmEmail(@Req() request: AuthenticatedRequest, @Body('confirmationCode') confirmCode: string) {
     const username_lower = request.user.username_lower;
 
     return this.authService.confirmEmail(confirmCode, username_lower);

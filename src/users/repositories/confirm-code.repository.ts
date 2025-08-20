@@ -30,8 +30,8 @@ export class ConfirmCodeRepository implements IConfirmCodeRepository {
       .createQueryBuilder()
       .update(ConfirmationCode)
       .set({ used: true })
-      .where('userId = :userId AND type = :type AND used = false', {
-        player_username: username,
+      .where('player_username = :username AND type = :type AND used = false', {
+        username,
         type,
       })
       .execute();
@@ -42,7 +42,7 @@ export class ConfirmCodeRepository implements IConfirmCodeRepository {
       .createQueryBuilder()
       .update(ConfirmationCode)
       .set({ used: true })
-      .where('userId = :userId AND used = false', { player_username: username })
+      .where('player_username = :username AND used = false', { username })
       .execute();
   }
 
@@ -51,7 +51,7 @@ export class ConfirmCodeRepository implements IConfirmCodeRepository {
       .createQueryBuilder()
       .delete()
       .from(ConfirmationCode)
-      .where('expiresAt IS NOT NULL AND expiresAt < :now', { now: currentDate })
+      .where('expires_at IS NOT NULL AND expires_at < :now', { now: currentDate })
       .execute();
   }
 }

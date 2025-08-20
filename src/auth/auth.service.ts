@@ -98,13 +98,19 @@ export class AuthService implements AuthServiceContract {
   }
 
   public async initEmailConfirmation(email: string, username: string): Promise<{ message: string }> {
-    const userInDB = await this.usersService.getByUsername(username);
+    const userInDBWithUsername = await this.usersService.getByUsername(username);
+    const userInDBWithEmail = await this.usersService.getByEmail(email);
 
-    if (!userInDB) {
+    if (!userInDBWithUsername) {
       throw new NotFoundException('The user was not found');
     }
 
+    if (userInDBWithEmail) {
+      throw new ConflictException('The email is already taken');
+    }
+
     const codeEntity = await this.confirmCodeService.createCode(username, 'email_confirmation');
+    await this.usersService.update(username, { email });
 
     const confirmEmailTemplate = new EmailConfirmationStrategy(codeEntity.code, username);
     await this.emailService.send(email, confirmEmailTemplate);
