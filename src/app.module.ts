@@ -6,9 +6,19 @@ import { UsersModule } from './users/users.module';
 import { DatabaseModule } from './database/database.module';
 import { OwnJwtModule } from './own-jwt/own-jwt.module';
 import { AuthModule } from './auth/auth.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [UsersModule, DatabaseModule, OwnJwtModule, AuthModule],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
+    UsersModule,
+    DatabaseModule,
+    OwnJwtModule,
+    AuthModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

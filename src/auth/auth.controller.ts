@@ -45,5 +45,7 @@ export class AuthController {
   @UseGuards(AccessTokenGuard)
   public async getInfoAboutMe(@Req() request: AuthenticatedRequest) {
     const username_lower = request.user.username_lower;
+
+    return this.authService.getInfoAboutMe(username_lower);
   }
 }
