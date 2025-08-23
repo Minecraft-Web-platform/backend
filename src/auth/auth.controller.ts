@@ -5,6 +5,7 @@ import { LoginDto } from './dtos/login.dto';
 import { AccessTokenGuard } from './guards/access-token.guard';
 import { AuthenticatedRequest } from './types/auth-request.type';
 import { initEmailConfirmationDto } from './dtos/init-email-confirmation.dto';
+import { ApiResponse } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
@@ -25,7 +26,11 @@ export class AuthController {
   @HttpCode(200)
   @Post('init-email-confirmation')
   @UseGuards(AccessTokenGuard)
-  public async initEmailConfirmation(@Req() request: AuthenticatedRequest, @Body() body: initEmailConfirmationDto) {
+  @ApiResponse({ status: 200 })
+  public async initEmailConfirmation(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: initEmailConfirmationDto,
+  ): Promise<{ message: string }> {
     const username_lower = request.user.username_lower;
 
     return this.authService.initEmailConfirmation(body.email, username_lower);

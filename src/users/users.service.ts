@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -40,6 +40,12 @@ export class UsersService implements UsersServiceContract {
   }
 
   public async create(userData: CreateUserType): Promise<User> {
+    const userInDB = await this.getByUsername(userData.username);
+
+    if (userInDB) {
+      throw new ConflictException('The user is already exists');
+    }
+
     const uuid = await this.generateOfflineUUID(userData.username);
 
     const newUser = this.usersRepository.create({
