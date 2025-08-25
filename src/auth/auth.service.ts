@@ -99,6 +99,10 @@ export class AuthService implements AuthServiceContract {
     };
   }
 
+  public async refreshToken(payload: JwtPayload): Promise<string> {
+    return this.jwtService.generateAccessToken(payload);
+  }
+
   public async initEmailConfirmation(email: string, username: string): Promise<{ message: string }> {
     const userInDBWithUsername = await this.usersService.getByUsername(username);
     const userInDBWithEmail = await this.usersService.getByEmail(email);

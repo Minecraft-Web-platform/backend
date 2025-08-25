@@ -1,12 +1,16 @@
 import { Body, Controller, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import { ApiResponse } from '@nestjs/swagger';
+
 import { AuthService } from './auth.service';
+
 import { RegisterDto } from './dtos/register.dto';
 import { LoginDto } from './dtos/login.dto';
+import { ResetPasswordDto } from './dtos/reset-password.dto';
+import { initEmailConfirmationDto } from './dtos/init-email-confirmation.dto';
+
 import { AccessTokenGuard } from './guards/access-token.guard';
 import { AuthenticatedRequest } from './types/auth-request.type';
-import { initEmailConfirmationDto } from './dtos/init-email-confirmation.dto';
-import { ApiResponse } from '@nestjs/swagger';
-import { ResetPasswordDto } from './dtos/reset-password.dto';
+import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -22,6 +26,15 @@ export class AuthController {
   @Post('login')
   public async login(@Body() loginData: LoginDto) {
     return this.authService.login(loginData);
+  }
+
+  @HttpCode(200)
+  @Post('refresh')
+  @UseGuards(RefreshTokenGuard)
+  public async refreshAccessToken(@Req() request: AuthenticatedRequest) {
+    const payload = request.user;
+
+    return this.authService.refreshToken(payload);
   }
 
   @HttpCode(200)
