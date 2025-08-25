@@ -6,6 +6,7 @@ import { AccessTokenGuard } from './guards/access-token.guard';
 import { AuthenticatedRequest } from './types/auth-request.type';
 import { initEmailConfirmationDto } from './dtos/init-email-confirmation.dto';
 import { ApiResponse } from '@nestjs/swagger';
+import { ResetPasswordDto } from './dtos/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -52,5 +53,21 @@ export class AuthController {
     const username_lower = request.user.username_lower;
 
     return this.authService.getInfoAboutMe(username_lower);
+  }
+
+  @HttpCode(200)
+  @Post('init-password-resetting')
+  public async initPasswordReset(@Body('username') username: string) {
+    const username_lower = username.toLowerCase();
+
+    return this.authService.initPasswordReset(username_lower);
+  }
+
+  @HttpCode(200)
+  @Post('reset-password')
+  public async resetPassword(@Body() { username, code, newPassword }: ResetPasswordDto) {
+    const username_lower = username.toLowerCase();
+
+    return this.authService.resetPassword(username_lower, code, newPassword);
   }
 }

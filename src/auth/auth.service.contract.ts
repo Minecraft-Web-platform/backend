@@ -8,4 +8,7 @@ export interface AuthServiceContract {
   login(data: LoginDto): Promise<TokenPair>;
   initEmailConfirmation(email: string, username: string): Promise<{ message: string }>;
   confirmEmail(code: string, username: string): Promise<void>;
+  getInfoAboutMe(username: string): Promise<UserResponseDto>;
+  initPasswordReset(username: string): Promise<{ message: string }>;
+  resetPassword(username: string, confirmCode: string, newPassword: string): Promise<{ message: string }>;
 }

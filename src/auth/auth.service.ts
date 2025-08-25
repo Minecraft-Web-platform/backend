@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -24,6 +25,7 @@ import { JwtPayload } from 'src/own-jwt/types/payload.type';
 import { TokenPair } from './types/token-pair.type';
 
 import { ConfirmationCode } from 'src/users/entities/confirmation-code.entity';
+import { PasswordRecoveryStrategy } from 'src/email/strategies/password-recovery.strategy';
 
 @Injectable()
 export class AuthService implements AuthServiceContract {
@@ -147,5 +149,49 @@ export class AuthService implements AuthServiceContract {
     }
 
     return new UserResponseDto(userInDB);
+  }
+
+  public async initPasswordReset(username: string): Promise<{ message: string }> {
+    const userInDBWithUsername = await this.usersService.getByUsername(username);
+
+    if (!userInDBWithUsername) {
+      throw new NotFoundException('The user was not found');
+    }
+
+    if (userInDBWithUsername.email === null || !userInDBWithUsername.emailIsConfirmed) {
+      throw new ForbiddenException('You need to confirm your email first');
+    }
+
+    const codeEntity = await this.confirmCodeService.createCode(username, 'password_reset');
+    const mailTemplate = new PasswordRecoveryStrategy(codeEntity.code);
+
+    await this.emailService.send(userInDBWithUsername.email, mailTemplate);
+
+    return { message: 'Confirmation code sent' };
+  }
+
+  public async resetPassword(username: string, confirmCode: string, newPassword: string): Promise<{ message: string }> {
+    const userInDB = await this.usersService.getByUsername(username);
+
+    if (!userInDB) {
+      throw new NotFoundException('The user was not found');
+    }
+
+    const codeEntityInDB = userInDB.codes?.find((codeOfUser) => codeOfUser.type === 'password_reset');
+
+    if (!codeEntityInDB) {
+      throw new BadRequestException('Init the password resetting first!');
+    }
+
+    if (codeEntityInDB.code !== confirmCode) {
+      throw new BadRequestException('Invalid code confirmation');
+    }
+
+    const newHashedPassword = await hash(newPassword, 12);
+    const newDataWithHashedPassword = { ...userInDB.data, password: newHashedPassword };
+
+    await this.usersService.update(username, { data: newDataWithHashedPassword });
+
+    return { message: 'The password has been changed succesfully!' };
   }
 }
