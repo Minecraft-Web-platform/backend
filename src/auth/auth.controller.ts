@@ -16,6 +16,11 @@ import { RefreshTokenGuard } from './guards/refresh-token.guard';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Get('ping')
+  public async ping() {
+    return 'Pong!';
+  }
+
   @HttpCode(201)
   @Post('register')
   public async register(@Body() user: RegisterDto) {
