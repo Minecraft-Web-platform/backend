@@ -6,7 +6,7 @@ export class UserResponseDto {
   public uuid: string;
   public email: string | null;
   public emailIsConfirmed: boolean;
-  public lastIp: string | undefined;
+  public lastIp: string;
 
   constructor(user: User) {
     this.id = user.id;
@@ -14,6 +14,6 @@ export class UserResponseDto {
     this.uuid = user.uuid;
     this.email = user.email;
     this.emailIsConfirmed = user.emailIsConfirmed;
-    this.lastIp = user.data.last_ip;
+    this.lastIp = user.data.last_ip || '';
   }
 }
