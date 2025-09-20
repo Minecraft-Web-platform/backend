@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UserResponseDto } from './dtos/user-response.dto';
 
@@ -20,7 +20,12 @@ export class UsersController {
   @Get(':username')
   public async getByUsername(@Param('username') username: string) {
     const usernameLowercase = username.toLowerCase();
+    const user = await this.usersService.getByUsername(usernameLowercase);
 
-    return this.usersService.getByUsername(usernameLowercase);
+    if (!user) {
+      throw new NotFoundException('The user was not found');
+    }
+
+    return new UserResponseDto(user);
   }
 }

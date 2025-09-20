@@ -11,4 +11,8 @@ export const typeOrmOptions: TypeOrmModuleOptions = {
   database: 's4638_auth',
   entities: [User, ConfirmationCode],
   synchronize: false,
+  extra: {
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+  },
 };
