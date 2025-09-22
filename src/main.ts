@@ -6,13 +6,14 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { logger: ['log', 'error', 'fatal', 'warn'] });
   const origins: string[] = [
-      'https://khroniki-kraya.com',
-      'https://www.khroniki-kraya.com',
-      'https://frontend-bay-eight-67.vercel.app',
-    ];
+    'https://khroniki-kraya.com',
+    'https://www.khroniki-kraya.com',
+    'https://frontend-bay-eight-67.vercel.app',
+    'http://localhost:5173',
+  ];
 
   app.enableCors({
-    origin: 'http://localhost:5173',
+    origin: origins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
