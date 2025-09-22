@@ -1,48 +1,25 @@
 import { Controller, Get } from '@nestjs/common';
-import { promises as fs } from 'fs';
-import { resolve, join } from 'path';
 
 @Controller('launchers')
 export class LaunchersController {
-  private readonly basePath = resolve(process.cwd(), 'files/launchers');
+  private readonly baseUrl = 'https://pub-9d1316f4f6df427e8eb2a68374b801fd.r2.dev';
 
-  private readonly fileMap: Record<string, { filename: string }> = {
-    windows: { filename: 'legacy-launcher-windows.exe' },
-    mac: { filename: 'legacy-launcher-mac.dmg' },
-    ubuntu: { filename: 'legacy-launcher-ubuntu.deb' },
+  private readonly fileMap: Record<string, { filename: string; sizeMB: number }> = {
+    windows: { filename: 'legacy-launcher-windows.exe', sizeMB: 111.2 },
+    mac: { filename: 'legacy-launcher-mac.dmg', sizeMB: 98.1 },
+    ubuntu: { filename: 'legacy-launcher-ubuntu.deb', sizeMB: 0.1 },
   };
 
   @Get('meta')
   async getMeta() {
-    const meta: Record<
-      string,
-      {
-        filename: string;
-        size: number;
-        sizeMB: number;
-        url: string;
-      }
-    > = {};
-
-    for (const [platform, { filename }] of Object.entries(this.fileMap)) {
-      const filePath = join(this.basePath, filename);
-
-      try {
-        const stat = await fs.stat(filePath);
-        const size = stat.size;
-        const sizeMB = parseFloat((size / (1024 * 1024)).toFixed(1));
-
-        meta[platform] = {
+    return Object.fromEntries(
+      Object.entries(this.fileMap).map(([platform, { filename }]) => [
+        platform,
+        {
           filename,
-          size,
-          sizeMB,
-          url: `/launchers/${filename}`,
-        };
-      } catch (e) {
-        console.log('LauncherControllerError: \n', e.message);
-      }
-    }
-
-    return meta;
+          url: `${this.baseUrl}/launchers/${filename}`,
+        },
+      ]),
+    );
   }
 }
