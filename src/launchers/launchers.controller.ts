@@ -13,10 +13,11 @@ export class LaunchersController {
   @Get('meta')
   async getMeta() {
     return Object.fromEntries(
-      Object.entries(this.fileMap).map(([platform, { filename }]) => [
+      Object.entries(this.fileMap).map(([platform, { filename, sizeMB }]) => [
         platform,
         {
           filename,
+          sizeMB,
           url: `${this.baseUrl}/launchers/${filename}`,
         },
       ]),
