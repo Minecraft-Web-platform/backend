@@ -1,4 +1,5 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
+import { AccessTokenGuard } from 'src/auth/guards/access-token.guard';
 
 @Controller('launchers')
 export class LaunchersController {
@@ -10,6 +11,7 @@ export class LaunchersController {
     ubuntu: { filename: 'legacy-launcher-ubuntu.deb', sizeMB: 0.1 },
   };
 
+  @UseGuards(AccessTokenGuard)
   @Get('meta')
   async getMeta() {
     return Object.fromEntries(

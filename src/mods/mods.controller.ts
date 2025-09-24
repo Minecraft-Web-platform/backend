@@ -1,17 +1,20 @@
-import { BadRequestException, Body, Controller, Get, Post, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
 import { ModsService } from './mods.service';
 import { Response } from 'express';
 import archiver from 'archiver';
+import { AccessTokenGuard } from 'src/auth/guards/access-token.guard';
 
 @Controller('mods')
 export class ModsController {
   constructor(private readonly modsService: ModsService) {}
 
+  @UseGuards(AccessTokenGuard)
   @Get()
   async getOptionalMods() {
     return this.modsService.getOptional();
   }
 
+  @UseGuards(AccessTokenGuard)
   @Post('modpack')
   async buildModpack(@Body() body: { optional: string[] }, @Res() res: Response) {
     const optional = Array.isArray(body?.optional) ? body.optional : [];
