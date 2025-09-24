@@ -1,7 +1,6 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UserResponseDto } from './dtos/user-response.dto';
-import { AccessTokenGuard } from 'src/auth/guards/access-token.guard';
 
 @Controller('users')
 export class UsersController {
@@ -11,7 +10,6 @@ export class UsersController {
     this.usersService = usersService;
   }
 
-  @UseGuards(AccessTokenGuard)
   @Get()
   public async getAll() {
     const users = await this.usersService.getAll();
@@ -19,7 +17,6 @@ export class UsersController {
     return users.map((user) => new UserResponseDto(user));
   }
 
-  @UseGuards(AccessTokenGuard)
   @Get(':username')
   public async getByUsername(@Param('username') username: string) {
     const usernameLowercase = username.toLowerCase();
