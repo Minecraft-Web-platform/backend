@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService, JwtSignOptions } from '@nestjs/jwt';
+import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './types/payload.type';
 
 @Injectable()
@@ -7,21 +7,34 @@ export class OwnJwtService {
   constructor(private readonly jwtService: JwtService) {}
 
   public async generateAccessToken(payload: JwtPayload): Promise<string> {
-    const signOptions: JwtSignOptions = {
-      expiresIn: '2h',
-      secret: 'accessToken',
-    };
+    const { username_lower, id, uuid } = payload;
 
-    return this.jwtService.signAsync(payload, signOptions);
+    return this.jwtService.signAsync(
+      {
+        username_lower,
+        id,
+        uuid,
+      },
+      {
+        expiresIn: '2h',
+        secret: 'accessToken',
+      },
+    );
   }
 
   public async generateRefreshToken(payload: JwtPayload): Promise<string> {
-    const signOptions: JwtSignOptions = {
-      expiresIn: '30d',
-      secret: 'refreshToken',
-    };
-
-    return this.jwtService.signAsync(payload, signOptions);
+    const { username_lower, id, uuid } = payload;
+    return this.jwtService.signAsync(
+      {
+        username_lower,
+        id,
+        uuid,
+      },
+      {
+        expiresIn: '30d',
+        secret: 'refreshToken',
+      },
+    );
   }
 
   public async verifyToken<T extends object>(token: string, secret: string): Promise<T> {
