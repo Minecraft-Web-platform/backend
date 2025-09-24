@@ -5,6 +5,7 @@ import { OwnJwtModule } from './own-jwt/own-jwt.module';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
 import { LaunchersModule } from './launchers/launchers.module';
+import { ModsModule } from './mods/mods.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { LaunchersModule } from './launchers/launchers.module';
     OwnJwtModule,
     AuthModule,
     LaunchersModule,
+    ModsModule,
   ],
 })
 export class AppModule {}
