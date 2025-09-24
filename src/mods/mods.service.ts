@@ -43,6 +43,11 @@ export class ModsService {
   }
 
   private async listMods(prefix: string): Promise<ModItem[]> {
+    console.log('Connecting to R2:', {
+      endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      bucket: this.bucketData.name,
+      key: prefix,
+    });
     const res = await this.s3.send(new ListObjectsV2Command({ Bucket: this.bucketData.name, Prefix: prefix }));
 
     if (!res.Contents) return [];

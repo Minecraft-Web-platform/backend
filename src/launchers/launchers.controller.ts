@@ -11,8 +11,8 @@ export class LaunchersController {
     ubuntu: { filename: 'legacy-launcher-ubuntu.deb', sizeMB: 0.1 },
   };
 
-  @UseGuards(AccessTokenGuard)
   @Get('meta')
+  @UseGuards(AccessTokenGuard)
   async getMeta() {
     return Object.fromEntries(
       Object.entries(this.fileMap).map(([platform, { filename, sizeMB }]) => [
