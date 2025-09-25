@@ -20,6 +20,8 @@ export class EmailService implements EmailServiceContract {
       },
     };
 
+    console.log(options);
+
     this.transporter = createTransport(options);
   }
 
