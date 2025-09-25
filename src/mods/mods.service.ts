@@ -3,10 +3,10 @@ import { Injectable } from '@nestjs/common';
 import { Readable } from 'stream';
 
 export interface ModItem {
-  name: string; // "fabric-api-0.92.1"
-  file: string; // "fabric-api-0.92.1.jar"
+  name: string;
+  file: string;
   required: boolean;
-  url: string; // link to the CDN
+  url: string;
 }
 
 @Injectable()
