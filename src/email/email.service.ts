@@ -14,15 +14,14 @@ export class EmailService implements EmailServiceContract {
     const options = {
       host: this.configService.get<string>('SMTP_HOST'),
       port: this.configService.get<number>('SMTP_PORT'),
+      secure: this.configService.get<number>('SMTP_PORT') == 465,
       auth: {
         user: this.configService.get<string>('SMTP_USER'),
         pass: this.configService.get<string>('SMTP_PASS'),
       },
     };
 
-    console.log(options);
-
-    this.transporter = createTransport(options);
+    this.transporter = createTransport(options, { debug: true });
   }
 
   async send(to: string, mailTemplate: MailTemplateStrategy): Promise<void> {
