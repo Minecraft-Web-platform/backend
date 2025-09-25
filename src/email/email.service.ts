@@ -24,6 +24,8 @@ export class EmailService implements EmailServiceContract {
   }
 
   async send(to: string, mailTemplate: MailTemplateStrategy): Promise<void> {
+    console.log('start sending');
+
     try {
       await this.transporter.sendMail({
         to: to,
@@ -31,6 +33,8 @@ export class EmailService implements EmailServiceContract {
         html: mailTemplate.getHTML(),
         text: mailTemplate.getText(),
       });
+
+      console.log('stop sending');
     } catch {
       throw new UnprocessableEntityException(`Email "${to}" is invalid or cannot be delivered`);
     }
