@@ -28,6 +28,9 @@ export class User {
   @Column({ default: false })
   emailIsConfirmed: boolean;
 
+  @Column({ name: 'is_admin', type: 'tinyint', width: 1, default: 0 })
+  isAdmin: boolean;
+
   @Column()
   uuid: string;
 
