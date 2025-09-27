@@ -64,6 +64,7 @@ export class AuthService implements AuthServiceContract {
         online_account: 'UNKNOWN',
         registration_date: new Date().toISOString(),
       },
+      isAdmin: false,
     };
 
     const createdUser = await this.usersService.create(dataForNewUser);
