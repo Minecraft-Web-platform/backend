@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import { ConfirmCodeRepository } from './repositories//confirm-code.repository';
+import { ConfirmCodeRepository } from './repositories/confirm-code.repository';
 import { ConfirmationCode } from './entities/confirmation-code.entity';
 import { ConfirmCodeActions } from './types/confirm-code-actions.type';
 import { IConfirmCodeService } from './confirm-code.service.contract';
@@ -30,6 +30,16 @@ export class ConfirmCodeService implements IConfirmCodeService {
 
   async getCodeForUserAndType(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode | null> {
     return this.confirmCodeRepo.findOneByUserAndType(username, type);
+  }
+
+  async getActiveCode(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode | null> {
+    const codeEntity = await this.confirmCodeRepo.findOneByUserAndType(username, type);
+
+    if (!codeEntity || codeEntity.used || (codeEntity.expires_at && codeEntity.expires_at < new Date())) {
+      return null;
+    }
+
+    return codeEntity;
   }
 
   async deactivateCode(username: string, type: ConfirmCodeActions): Promise<void> {

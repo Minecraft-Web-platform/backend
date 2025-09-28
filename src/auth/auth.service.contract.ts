@@ -28,7 +28,7 @@ export interface AuthServiceContract {
   /**
    * @description confirm an email. Now user can use all features
    */
-  confirmEmail(code: string, username: string): Promise<void>;
+  confirmEmail(code: string, username: string): Promise<{ message: string }>;
 
   /**
    * @description sends info about the user

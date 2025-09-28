@@ -125,25 +125,30 @@ export class AuthService implements AuthServiceContract {
     return { message: 'Confirmation code sent' };
   }
 
-  public async confirmEmail(code: string, username: string): Promise<void> {
+  public async confirmEmail(code: string, username: string): Promise<{ message: string }> {
     const userInDB = await this.usersService.getByUsername(username);
 
     if (!userInDB) {
       throw new NotFoundException('The user was not found');
     }
 
-    const codeEntityInDB = userInDB.codes?.find((codeOfUser) => codeOfUser.type === 'email_confirmation');
-
+    const codeEntityInDB = await this.confirmCodeService.getActiveCode(username, 'email_confirmation');
     if (!codeEntityInDB) {
       throw new BadRequestException('Init the email confirmation first');
     }
 
     if (codeEntityInDB.code !== code) {
-      throw new BadRequestException('Invalid code confirmation');
+      throw new BadRequestException('Invalid confirmation code');
     }
 
-    this.confirmCodeService.deactivateCode(username, 'email_confirmation');
-    this.usersService.update(username, { emailIsConfirmed: true });
+    if (codeEntityInDB.expires_at && codeEntityInDB.expires_at < new Date()) {
+      throw new BadRequestException('The confirmation code has expired');
+    }
+
+    await this.confirmCodeService.deactivateCode(username, 'email_confirmation');
+    await this.usersService.update(username, { emailIsConfirmed: true });
+
+    return { message: 'Email confirmed successfully' };
   }
 
   public async getInfoAboutMe(username: string): Promise<UserResponseDto> {
