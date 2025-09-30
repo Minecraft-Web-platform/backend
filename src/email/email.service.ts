@@ -17,7 +17,7 @@ export class EmailService implements EmailServiceContract {
     try {
       await this.resend.emails.send({
         from: this.configService.get<string>('SMTP_FROM') ?? 'send@khroniki-kraya.com',
-        to: 'oleksandr.shtonda.dev@gmail.com',
+        to,
         subject: mailTemplate.getSubject(),
         html: mailTemplate.getHTML(),
         text: mailTemplate.getText(),
