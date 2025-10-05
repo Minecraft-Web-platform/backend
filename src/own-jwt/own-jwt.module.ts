@@ -9,5 +9,6 @@ import { JwtModule } from '@nestjs/jwt';
       global: true,
     }),
   ],
+  exports: [OwnJwtService]
 })
 export class OwnJwtModule {}
