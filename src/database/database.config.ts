@@ -1,4 +1,7 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { NewsBlock } from 'src/news/entities/news-block.entity';
+import { NewsCategory } from 'src/news/entities/news-category.entity';
+import { News } from 'src/news/entities/news.entity';
 import { ConfirmationCode } from 'src/users/entities/confirmation-code.entity';
 import { User } from 'src/users/entities/user.entity';
 
@@ -9,6 +12,6 @@ export const typeOrmOptions: TypeOrmModuleOptions = {
   username: 'u4638_RaalTBQgbN',
   password: '=DnRPvKIB62hPGabkn!w@w9O',
   database: 's4638_auth',
-  entities: [User, ConfirmationCode],
+  entities: [User, ConfirmationCode, News, NewsBlock, NewsCategory],
   synchronize: false,
 };
