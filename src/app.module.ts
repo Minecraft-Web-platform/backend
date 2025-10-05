@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { LaunchersModule } from './launchers/launchers.module';
 import { ModsModule } from './mods/mods.module';
 import { TicketModule } from './tickets/tickets.module';
+import { NewsModule } from './news/news.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TicketModule } from './tickets/tickets.module';
     LaunchersModule,
     ModsModule,
     TicketModule,
+    NewsModule,
   ],
 })
 export class AppModule {}
