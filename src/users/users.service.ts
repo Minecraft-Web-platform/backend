@@ -73,8 +73,7 @@ export class UsersService implements UsersServiceContract {
     );
 
     const avatarUrl = `https://pub-241ad1aaf9d14d79874ff5a20c2edb83.r2.dev/${key}`;
-    user.avatarUrl = avatarUrl;
-    await this.usersRepository.save(user);
+    await this.update(user.username_lower, { avatarUrl });
 
     return avatarUrl;
   }
@@ -98,7 +97,7 @@ export class UsersService implements UsersServiceContract {
   }
 
   public async update(username: string, dataToUpdate: Partial<Omit<User, 'username'>>) {
-    await this.usersRepository.update({ username }, dataToUpdate);
+    await this.usersRepository.update({ username: username.toLowerCase() }, dataToUpdate);
 
     return this.usersRepository.findOne({ where: { username } });
   }
