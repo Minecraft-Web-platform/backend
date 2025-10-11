@@ -8,6 +8,7 @@ import { LaunchersModule } from './launchers/launchers.module';
 import { ModsModule } from './mods/mods.module';
 import { TicketModule } from './tickets/tickets.module';
 import { NewsModule } from './news/news.module';
+import { MinecraftRconModule } from './minecraft-rcon/minecraft-rcon.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { NewsModule } from './news/news.module';
     ModsModule,
     TicketModule,
     NewsModule,
+    MinecraftRconModule,
   ],
 })
 export class AppModule {}
