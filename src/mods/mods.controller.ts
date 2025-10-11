@@ -27,6 +27,11 @@ export class ModsController {
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', 'attachment; filename=modpack.zip');
 
+    res.on('close', () => {
+      console.warn('Client disconnected during download');
+      zipArchive.abort();
+    });
+
     zipArchive.pipe(res);
 
     const requiredMods = await this.modsService.getAll();
