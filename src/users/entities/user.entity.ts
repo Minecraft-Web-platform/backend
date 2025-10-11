@@ -26,7 +26,7 @@ export class User {
   email: string | null;
 
   @Column({ name: 'avatar_url', nullable: true })
-  avatarUrl?: string;
+  avatarUrl: string | null;
 
   @Column({ default: false })
   emailIsConfirmed: boolean;

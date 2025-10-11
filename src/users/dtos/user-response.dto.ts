@@ -7,6 +7,7 @@ export class UserResponseDto {
   public email: string | null;
   public emailIsConfirmed: boolean;
   public lastIp: string;
+  public avatar_img: string | null;
 
   constructor(user: User) {
     this.id = user.id;
@@ -15,5 +16,6 @@ export class UserResponseDto {
     this.email = user.email;
     this.emailIsConfirmed = user.emailIsConfirmed;
     this.lastIp = user.data.last_ip || '';
+    this.avatar_img = user.avatarUrl;
   }
 }
