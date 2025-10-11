@@ -25,6 +25,9 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: true })
   email: string | null;
 
+  @Column({ name: 'avatar_url', nullable: true })
+  avatarUrl?: string;
+
   @Column({ default: false })
   emailIsConfirmed: boolean;
 
