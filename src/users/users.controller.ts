@@ -35,7 +35,7 @@ export class UsersController {
     const userInDB = await this.usersService.getByUsername(usernameLowercase);
 
     if (!userInDB) {
-      throw NotFoundException;
+      throw new NotFoundException('Игрок не найден');
     }
 
     const normalizedUser = new UserResponseDto(userInDB);
