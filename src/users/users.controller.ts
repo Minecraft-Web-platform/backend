@@ -1,4 +1,14 @@
-import { Controller, Get, Param, Post, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UserResponseDto } from './dtos/user-response.dto';
 import { AccessTokenGuard } from 'src/auth/guards/access-token.guard';
@@ -22,8 +32,15 @@ export class UsersController {
   @Get(':username')
   public async getByUsername(@Param('username') username: string) {
     const usernameLowercase = username.toLowerCase();
+    const userInDB = await this.usersService.getByUsername(usernameLowercase);
 
-    return this.usersService.getByUsername(usernameLowercase);
+    if (!userInDB) {
+      throw NotFoundException;
+    }
+
+    const normalizedUser = new UserResponseDto(userInDB);
+
+    return normalizedUser;
   }
 
   @Post('avatar')
