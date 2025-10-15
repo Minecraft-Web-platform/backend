@@ -1,9 +1,9 @@
-import { Column, Entity, OneToMany, PrimaryColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { News } from './news.entity';
 
 @Entity('news_categories')
 export class NewsCategory {
-  @PrimaryColumn('char', { length: 36 })
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ unique: true, length: 100 })

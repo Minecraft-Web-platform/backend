@@ -1,23 +1,21 @@
-import { Column, Entity, ManyToOne, PrimaryColumn } from 'typeorm';
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { News } from './news.entity';
 
 export type NewsBlockType = 'text' | 'image';
 
 @Entity('news_blocks')
 export class NewsBlock {
-  @PrimaryColumn('char', { length: 36 })
-  id: string; // UUID v4
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column({ type: 'enum', enum: ['text', 'image'] })
   type: NewsBlockType;
 
   @Column('text')
-  content: string;
-  // if type = 'text' → text
-  // if type = 'image' → image URL
+  content: string; // text or url
 
   @Column()
-  order: number; // block order of a news
+  order: number;
 
   @ManyToOne(() => News, (news) => news.blocks, { onDelete: 'CASCADE' })
   news: News;

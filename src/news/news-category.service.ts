@@ -2,19 +2,21 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NewsCategory } from './entities/news-category.entity';
-import { CreateCategoryDto } from './dto/create-category.dto';
-import { UpdateCategoryDto } from './dto/update-category.dto';
+import { INewsCategoryService } from './contracts/news-categories.service.contract';
 
 @Injectable()
-export class NewsCategoryService {
+export class NewsCategoryService implements INewsCategoryService {
   constructor(
     @InjectRepository(NewsCategory)
-    private categoryRepo: Repository<NewsCategory>,
+    private readonly categoryRepo: Repository<NewsCategory>,
   ) {}
 
-  async create(dto: CreateCategoryDto): Promise<NewsCategory> {
+  async create(dto: {
+    name: string;
+    description?: string;
+    publish_permission: 'all' | 'admins';
+  }): Promise<NewsCategory> {
     const category = this.categoryRepo.create(dto);
-
     return this.categoryRepo.save(category);
   }
 
@@ -27,25 +29,25 @@ export class NewsCategoryService {
       where: { id },
       relations: ['news'],
     });
-
-    if (!category) {
-      throw new NotFoundException('Category not found');
-    }
-
+    if (!category) throw new NotFoundException('Category not found');
     return category;
   }
 
-  async update(id: string, dto: UpdateCategoryDto): Promise<NewsCategory> {
+  async update(
+    id: string,
+    dto: {
+      name?: string;
+      description?: string;
+      publish_permission?: 'all' | 'admins';
+    },
+  ): Promise<NewsCategory> {
     const category = await this.findOne(id);
-
     Object.assign(category, dto);
-
     return this.categoryRepo.save(category);
   }
 
   async remove(id: string): Promise<void> {
     const result = await this.categoryRepo.delete(id);
-
     if (result.affected === 0) {
       throw new NotFoundException('Category not found');
     }

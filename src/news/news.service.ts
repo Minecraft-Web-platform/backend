@@ -1,42 +1,65 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { Repository, FindOptionsWhere } from 'typeorm';
+
 import { News } from './entities/news.entity';
-import { NewsBlock } from './entities/news-block.entity';
+
 import { CreateNewsDto } from './dto/create-news.dto';
 import { UpdateNewsDto } from './dto/update-news.dto';
-import { NewsCategory } from './entities/news-category.entity';
+
+import { UsersService } from 'src/users/users.service';
+import { INewsService } from './contracts/news.service.contract';
+
+import { NewsCategoryService } from './news-category.service';
+import { NewsBlockService } from './news-blocks.service';
 
 @Injectable()
-export class NewsService {
+export class NewsService implements INewsService {
   constructor(
-    @InjectRepository(News) private readonly newsRepo: Repository<News>,
-    @InjectRepository(NewsBlock) private readonly blockRepo: Repository<NewsBlock>,
-    @InjectRepository(NewsCategory) private readonly categoryRepo: Repository<NewsCategory>,
+    @InjectRepository(News)
+    private readonly newsRepo: Repository<News>,
+
+    private readonly usersService: UsersService,
+    private readonly categoryService: NewsCategoryService,
+    private readonly blockService: NewsBlockService,
   ) {}
 
   async create(dto: CreateNewsDto): Promise<News> {
-    const category = await this.categoryRepo.findOneBy({ id: dto.categoryId });
+    const category = await this.categoryService.findOne(dto.categoryId);
+    const author = await this.usersService.getByUsername(dto.author);
 
-    if (!category) {
-      throw new NotFoundException('Category not found');
+    if (!author) {
+      throw new ForbiddenException('Author not found or not authenticated');
     }
+
+    if (category.publish_permission === 'admins' && !author.isAdmin) {
+      throw new ForbiddenException('Only admins can publish in this category');
+    }
+
+    const isApproved = author.isAdmin;
 
     const news = this.newsRepo.create({
       title: dto.title,
-      author: dto.author,
+      author: author.username,
+      authorId: author.id,
       category,
-      isApproved: false,
-      blocks: dto.blocks.map((block, i) =>
-        this.blockRepo.create({
-          type: block.type,
-          content: block.content,
-          order: i,
-        }),
-      ),
+      isApproved,
     });
 
-    return this.newsRepo.save(news);
+    const savedNews = await this.newsRepo.save(news);
+
+    for (let i = 0; i < dto.blocks.length; i++) {
+      const block = dto.blocks[i];
+
+      await this.blockService.create({
+        newsId: savedNews.id,
+        type: block.type,
+        content: block.content,
+        order: i,
+      });
+    }
+
+    return this.findOne(savedNews.id);
   }
 
   async findAll(options?: { categoryId?: string; onlyApproved?: boolean }): Promise<News[]> {
@@ -58,7 +81,7 @@ export class NewsService {
   }
 
   async findOne(id: string, options?: { onlyApproved?: boolean }): Promise<News> {
-    const where: FindOptionsWhere<News> = {};
+    const where: FindOptionsWhere<News> = { id };
 
     if (options?.onlyApproved) {
       where.isApproved = true;
@@ -103,29 +126,32 @@ export class NewsService {
     }
 
     if (dto.categoryId) {
-      const category = await this.categoryRepo.findOneBy({ id: dto.categoryId });
-
-      if (!category) {
-        throw new NotFoundException('Category not found');
-      }
-
+      const category = await this.categoryService.findOne(dto.categoryId);
       news.category = category;
     }
 
     if (dto.blocks) {
-      await this.blockRepo.delete({ news: { id } });
+      const oldBlocks = await this.blockService.findByNews(id);
 
-      news.blocks = dto.blocks.map((block, i) =>
-        this.blockRepo.create({
+      for (const oldBlock of oldBlocks) {
+        await this.blockService.remove(oldBlock.id);
+      }
+
+      for (let i = 0; i < dto.blocks.length; i++) {
+        const block = dto.blocks[i];
+
+        await this.blockService.create({
+          newsId: id,
           type: block.type,
           content: block.content,
           order: i,
-          news,
-        }),
-      );
+        });
+      }
     }
 
-    return this.newsRepo.save(news);
+    await this.newsRepo.save(news);
+
+    return this.findOne(id);
   }
 
   async remove(id: string): Promise<void> {
