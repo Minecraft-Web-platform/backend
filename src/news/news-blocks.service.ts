@@ -17,7 +17,10 @@ export class NewsBlockService implements INewsBlockService {
 
   async create(dto: { newsId: string; type: 'text' | 'image'; content: string; order: number }): Promise<NewsBlock> {
     const news = await this.newsRepo.findOneBy({ id: dto.newsId });
-    if (!news) throw new NotFoundException('News not found');
+
+    if (!news) {
+      throw new NotFoundException('News not found');
+    }
 
     const block = this.blockRepo.create({
       ...dto,

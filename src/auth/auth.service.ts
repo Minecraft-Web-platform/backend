@@ -156,7 +156,7 @@ export class AuthService implements AuthServiceContract {
     const userInDB = await this.usersService.getByUsername(username);
 
     if (!userInDB) {
-      throw new NotFoundException('The user was not found');
+      throw new UnauthorizedException('The user was not found');
     }
 
     return new UserResponseDto(userInDB);
@@ -203,6 +203,6 @@ export class AuthService implements AuthServiceContract {
 
     await this.usersService.update(username, { data: newDataWithHashedPassword });
 
-    return { message: 'The password has been changed succesfully!' };
+    return { message: 'The password has been changed successfully!' };
   }
 }
