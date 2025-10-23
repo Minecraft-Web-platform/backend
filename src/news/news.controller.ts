@@ -11,6 +11,8 @@ import {
   UseGuards,
   ForbiddenException,
   UnauthorizedException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { NewsService } from './news.service';
 import { CreateNewsDto } from './dto/create-news.dto';
@@ -21,6 +23,8 @@ import { AuthenticatedRequest } from 'src/auth/types/auth-request.type';
 import { UsersService } from 'src/users/users.service';
 import { NewsCategoryService } from './news-category.service';
 import { News } from './entities/news.entity';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Auth } from 'typeorm';
 
 @Controller('news')
 export class NewsController {
@@ -29,6 +33,15 @@ export class NewsController {
     private readonly usersService: UsersService,
     private readonly categoryService: NewsCategoryService,
   ) {}
+
+  @UseGuards(AccessTokenGuard)
+  @Post('image')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadImage(@UploadedFile() file: Express.Multer.File) {
+    const imageUrl = await this.newsService.uploadImage(file);
+
+    return { imageUrl };
+  }
 
   @Post()
   @UseGuards(AccessTokenGuard)
@@ -61,8 +74,18 @@ export class NewsController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<News> {
-    return this.newsService.findOne(id, { onlyApproved: true });
+  @UseGuards(AccessTokenGuard)
+  async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<News> {
+    const username = req.user.username_lower;
+    const user = await this.usersService.getByUsername(username);
+
+    console.log(user)
+
+    if (!user?.isAdmin) {
+      return this.newsService.findOne(id, { onlyApproved: true });
+    }
+
+    return this.newsService.findOne(id);
   }
 
   @Patch(':id/approve')

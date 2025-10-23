@@ -1,6 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere } from 'typeorm';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { FindOptionsWhere, Repository } from 'typeorm';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 
 import { News } from './entities/news.entity';
 
@@ -15,6 +18,9 @@ import { NewsBlockService } from './news-blocks.service';
 
 @Injectable()
 export class NewsService implements INewsService {
+  private s3: S3Client;
+  private bucketName = 'news-pics';
+
   constructor(
     @InjectRepository(News)
     private readonly newsRepo: Repository<News>,
@@ -22,7 +28,34 @@ export class NewsService implements INewsService {
     private readonly usersService: UsersService,
     private readonly categoryService: NewsCategoryService,
     private readonly blockService: NewsBlockService,
-  ) {}
+  ) {
+    this.s3 = new S3Client({
+      region: 'auto',
+      endpoint: 'https://df4312c11ddf0f2ed9b8fd51a8e570a3.r2.cloudflarestorage.com',
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY!,
+        secretAccessKey: process.env.R2_SECRET_KEY!,
+      },
+    });
+  }
+
+  async uploadImage(file: Express.Multer.File): Promise<string> {
+    if (!file) throw new BadRequestException('Файл не передан');
+
+    const ext = path.extname(file.originalname);
+    const key = `${randomUUID()}${ext}`;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }),
+    );
+
+    return `https://pub-74cf945c6d0c4b15b79b8c1a19ab884a.r2.dev/${key}`;
+  }
 
   async create(dto: CreateNewsDto): Promise<News> {
     const category = await this.categoryService.findOne(dto.categoryId);
@@ -126,8 +159,7 @@ export class NewsService implements INewsService {
     }
 
     if (dto.categoryId) {
-      const category = await this.categoryService.findOne(dto.categoryId);
-      news.category = category;
+      news.category = await this.categoryService.findOne(dto.categoryId);
     }
 
     if (dto.blocks) {
