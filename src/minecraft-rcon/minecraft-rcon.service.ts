@@ -3,7 +3,7 @@ import { Rcon } from 'rcon-client';
 
 @Injectable()
 export class MinecraftRconService {
-  private readonly host = '146.19.48.158';
+  private readonly host = '5.83.140.252';
   private readonly port = 25984;
   private readonly password = 'amogus228';
 
