@@ -8,6 +8,10 @@ export class CreateNewsDto {
 
   @IsString()
   @IsNotEmpty()
+  author: string;
+
+  @IsString()
+  @IsNotEmpty()
   categoryId: string;
 
   @IsArray()

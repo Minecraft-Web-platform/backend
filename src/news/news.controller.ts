@@ -24,7 +24,6 @@ import { UsersService } from 'src/users/users.service';
 import { NewsCategoryService } from './news-category.service';
 import { News } from './entities/news.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Auth } from 'typeorm';
 
 @Controller('news')
 export class NewsController {
@@ -45,7 +44,7 @@ export class NewsController {
 
   @Post()
   @UseGuards(AccessTokenGuard)
-  async create(@Body() dto: CreateNewsDto, @Req() req: AuthenticatedRequest): Promise<News> {
+  async create(@Body() dto: Omit<CreateNewsDto, 'author'>, @Req() req: AuthenticatedRequest): Promise<News> {
     const actor = await this.usersService.getByUsername(req.user.username_lower);
 
     if (!actor) {
