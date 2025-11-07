@@ -39,7 +39,7 @@ export class NewsController {
   async uploadImage(@UploadedFile() file: Express.Multer.File) {
     const imageUrl = await this.newsService.uploadImage(file);
 
-    return { imageUrl };
+    return { url: imageUrl };
   }
 
   @Post()
