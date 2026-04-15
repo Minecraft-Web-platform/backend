@@ -12,6 +12,6 @@ export class MinecraftRconController {
 
   @Get('ping')
   async ping() {
-    return;
+    return this.mcService.ping();
   }
 }
