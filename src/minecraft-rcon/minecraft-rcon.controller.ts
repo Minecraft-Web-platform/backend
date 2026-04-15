@@ -9,4 +9,9 @@ export class MinecraftRconController {
   async getPlayers() {
     return this.mcService.getOnlinePlayers();
   }
+
+  @Get('ping')
+  async ping() {
+    return;
+  }
 }
