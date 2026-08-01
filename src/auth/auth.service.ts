@@ -188,7 +188,7 @@ export class AuthService implements AuthServiceContract {
       throw new NotFoundException('The user was not found');
     }
 
-    const codeEntityInDB = userInDB.codes?.find((codeOfUser) => codeOfUser.type === 'password_reset');
+    const codeEntityInDB = await this.confirmCodeService.getActiveCode(username, 'password_reset');
 
     if (!codeEntityInDB) {
       throw new BadRequestException('Init the password resetting first!');
@@ -197,6 +197,12 @@ export class AuthService implements AuthServiceContract {
     if (codeEntityInDB.code !== confirmCode) {
       throw new BadRequestException('Invalid code confirmation');
     }
+
+    if (codeEntityInDB.expires_at && codeEntityInDB.expires_at < new Date()) {
+      throw new BadRequestException('The confirmation code has expired');
+    }
+
+    await this.confirmCodeService.deactivateCode(username, 'password_reset');
 
     const newHashedPassword = await hash(newPassword, 12);
     const newDataWithHashedPassword = { ...userInDB.data, password: newHashedPassword };

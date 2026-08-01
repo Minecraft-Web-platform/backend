@@ -11,6 +11,8 @@ export class ConfirmCodeService implements IConfirmCodeService {
   constructor(private readonly confirmCodeRepo: ConfirmCodeRepository) {}
 
   async createCode(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode> {
+    await this.deactivateCode(username, type);
+
     const code = this.generateCode();
     const expires_at = new Date(Date.now() + 15 * 60 * 1000);
 

@@ -23,6 +23,6 @@ export class ConfirmationCode {
   expires_at?: Date;
 
   @ManyToOne(() => User, (user) => user.codes, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'player_username', referencedColumnName: 'username' })
+  @JoinColumn({ name: 'player_username', referencedColumnName: 'username_lower' })
   user: User;
 }

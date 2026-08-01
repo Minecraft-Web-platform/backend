@@ -1,19 +1,37 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { CityEntity } from './city.entity';
+import { User } from '../../users/entities/user.entity';
+import { StateDecreeEntity } from './state-decree.entity';
 
 @Entity('states')
 export class StateEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ unique: true })
   name: string;
 
-  @Column()
-  citizens: string
+  @Column({ type: 'text', nullable: true })
+  description: string;
 
-  @Column()
-  cities: string;
+  @Column({ name: 'flag_url', type: 'varchar', length: 500, nullable: true })
+  flagUrl: string | null;
 
-  @Column()
-  capital: string;
+  @Column({ name: 'leader_username', type: 'varchar', length: 255, nullable: true })
+  leaderUsername: string | null;
+
+  @Column({ name: 'capital_city_id', type: 'uuid', nullable: true })
+  capitalCityId: string | null;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
+  createdAt: Date;
+
+  @OneToMany(() => CityEntity, (city) => city.state)
+  cities?: CityEntity[];
+
+  @OneToMany(() => User, (user) => user.state)
+  citizens?: User[];
+
+  @OneToMany(() => StateDecreeEntity, (decree) => decree.state, { cascade: true })
+  decrees?: StateDecreeEntity[];
 }

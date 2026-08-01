@@ -13,11 +13,17 @@ export class ConfirmCodeRepository implements IConfirmCodeRepository {
   ) {}
 
   async findAllByUsername(username: string): Promise<ConfirmationCode[]> {
-    return this.repo.find({ where: { player_username: username } });
+    return this.repo.find({
+      where: { player_username: username },
+      order: { expires_at: 'DESC' },
+    });
   }
 
   async findOneByUserAndType(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode | null> {
-    return this.repo.findOne({ where: { player_username: username, type } });
+    return this.repo.findOne({
+      where: { player_username: username, type, used: false },
+      order: { expires_at: 'DESC' },
+    });
   }
 
   async createCode(data: Partial<ConfirmationCode>): Promise<ConfirmationCode> {
