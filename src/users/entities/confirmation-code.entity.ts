@@ -19,7 +19,7 @@ export class ConfirmationCode {
   @Column({ default: false })
   used: boolean;
 
-  @Column({ type: 'datetime', nullable: true, default: null })
+  @Column({ type: 'timestamp', nullable: true, default: null })
   expires_at?: Date;
 
   @ManyToOne(() => User, (user) => user.codes, { onDelete: 'CASCADE' })

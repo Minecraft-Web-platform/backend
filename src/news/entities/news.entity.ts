@@ -21,7 +21,7 @@ export class News {
   @Column({ default: false })
   isApproved: boolean;
 
-  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   created_at: Date;
 
   @Column({ length: 255 })

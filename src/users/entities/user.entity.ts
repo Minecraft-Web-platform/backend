@@ -31,7 +31,7 @@ export class User {
   @Column({ default: false })
   emailIsConfirmed: boolean;
 
-  @Column({ name: 'is_admin', type: 'tinyint', width: 1, default: 0 })
+  @Column({ name: 'is_admin', default: false })
   isAdmin: boolean;
 
   @Column()
