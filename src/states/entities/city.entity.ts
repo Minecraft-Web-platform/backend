@@ -33,6 +33,12 @@ export class CityEntity {
   @OneToMany(() => User, (user) => user.city)
   citizens?: User[];
 
+  @Column({ type: 'varchar', nullable: true })
+  treasuryAccountNumber?: string;
+
+  @Column({ type: 'float', default: 3.0 })
+  taxRate: number;
+
   @OneToMany(() => CitizenshipRequestEntity, (req) => req.city, { cascade: true })
   citizenshipRequests?: CitizenshipRequestEntity[];
 }

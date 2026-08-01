@@ -11,6 +11,8 @@ import { NewsModule } from './news/news.module';
 import { MinecraftRconModule } from './minecraft-rcon/minecraft-rcon.module';
 import { StatesModule } from './states/states.module';
 
+import { EconomyModule } from './economy/economy.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -27,6 +29,7 @@ import { StatesModule } from './states/states.module';
     NewsModule,
     MinecraftRconModule,
     StatesModule,
+    EconomyModule,
   ],
 })
 export class AppModule {}

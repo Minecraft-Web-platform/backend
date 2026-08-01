@@ -14,5 +14,6 @@ export const typeOrmOptions: TypeOrmModuleOptions = {
   password: process.env.DB_PASSWORD || 'minecraft_secret',
   database: process.env.DB_NAME || 'minecraft_db',
   entities: [User, ConfirmationCode, News, NewsBlock, NewsCategory],
+  autoLoadEntities: true,
   synchronize: process.env.DB_SYNCHRONIZE === 'true' || true,
 };

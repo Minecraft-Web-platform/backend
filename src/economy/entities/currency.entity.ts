@@ -1,0 +1,45 @@
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+
+@Entity('economy_currencies')
+export class Currency {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  @Index()
+  stateId: string | null; // ID государства-эмитента (null для общесерверной валюты)
+
+  @Column({ unique: true })
+  @Index()
+  code: string; // тикер валюты, например DIA, GLD, AR
+
+  @Column()
+  name: string; // название валюты
+
+  @Column({ default: 'minecraft:diamond' })
+  minecraftItemId: string; // предмет в Minecraft (получение только через креатив)
+
+  @Column({ default: 'unbreaking:3' })
+  minecraftEnchantment: string; // чары, которые нельзя получить в обычном выживании
+
+  @Column({ type: 'float', default: 1000 })
+  totalIssued: number; // общий объем эмиссии валюты
+
+  @Column({ type: 'float', default: 1000 })
+  reserves: number; // резервы в казне в эталонном эквиваленте
+
+  @Column({ type: 'float', default: 1.0 })
+  exchangeRate: number; // текущий курс валюты
+
+  @Column({ type: 'float', default: 0.0 })
+  rateChange24h: number; // изменение курса за последние сутки (%)
+
+  @CreateDateColumn()
+  createdAt: Date;
+}

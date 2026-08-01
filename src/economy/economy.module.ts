@@ -1,4 +1,56 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Account } from './entities/account.entity';
+import { Currency } from './entities/currency.entity';
+import { CreditCard } from './entities/credit-card.entity';
+import { Transfer } from './entities/transfer.entity';
+import { Company } from './entities/company.entity';
+import { CompanyShare } from './entities/company-share.entity';
+import { StateEntity } from '../states/entities/state.entity';
+import { CityEntity } from '../states/entities/city.entity';
+import { EconomyService } from './services/economy.service';
+import { CurrenciesService } from './services/currencies.service';
+import { CompaniesService } from './services/companies.service';
+import { StockExchangeService } from './services/stock-exchange.service';
+import { EconomyController } from './controllers/economy.controller';
+import { CurrenciesController } from './controllers/currencies.controller';
+import { CompaniesController } from './controllers/companies.controller';
+import { StockExchangeController } from './controllers/stock-exchange.controller';
+import { OwnJwtModule } from '../own-jwt/own-jwt.module';
+import { UsersModule } from '../users/users.module';
 
-@Module({})
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([
+      Account,
+      Currency,
+      CreditCard,
+      Transfer,
+      Company,
+      CompanyShare,
+      StateEntity,
+      CityEntity,
+    ]),
+    OwnJwtModule,
+    UsersModule,
+  ],
+  providers: [
+    EconomyService,
+    CurrenciesService,
+    CompaniesService,
+    StockExchangeService,
+  ],
+  controllers: [
+    EconomyController,
+    CurrenciesController,
+    CompaniesController,
+    StockExchangeController,
+  ],
+  exports: [
+    EconomyService,
+    CurrenciesService,
+    CompaniesService,
+    StockExchangeService,
+  ],
+})
 export class EconomyModule {}
