@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
 import { CompanyShare } from '../entities/company-share.entity';
 import { Account } from '../entities/account.entity';
+import { EconomyService } from './economy.service';
 
 @Injectable()
 export class StockExchangeService {
@@ -19,6 +20,7 @@ export class StockExchangeService {
     private readonly shareRepository: Repository<CompanyShare>,
     @InjectRepository(Account)
     private readonly accountRepository: Repository<Account>,
+    private readonly economyService: EconomyService,
   ) {}
 
   public async getPublicCompanies(): Promise<Company[]> {
@@ -69,6 +71,7 @@ export class StockExchangeService {
     companyId: string,
     count: number,
   ): Promise<{ company: Company; portfolio: CompanyShare }> {
+    await this.economyService.assertUserStateHasCurrency(username);
     if (count <= 0) {
       throw new BadRequestException('Количество акций должно быть больше 0');
     }
@@ -157,6 +160,7 @@ export class StockExchangeService {
     companyId: string,
     count: number,
   ): Promise<{ company: Company; portfolio: CompanyShare }> {
+    await this.economyService.assertUserStateHasCurrency(username);
     if (count <= 0) {
       throw new BadRequestException('Количество акций должно быть больше 0');
     }

@@ -113,7 +113,7 @@ export class AuthService implements AuthServiceContract {
       throw new NotFoundException('The user was not found');
     }
 
-    if (userInDBWithEmail && userInDBWithUsername.email !== email) {
+    if (userInDBWithEmail && userInDBWithEmail.id !== userInDBWithUsername.id) {
       throw new ConflictException('The email is already taken');
     }
 

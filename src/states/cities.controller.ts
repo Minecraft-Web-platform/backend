@@ -36,15 +36,22 @@ export class CitiesController {
   }
 
   @Post()
-  @UseGuards(AccessTokenGuard, AdminGuard)
-  async createCity(@Body() dto: CreateCityDto) {
-    return this.statesService.createCity(dto);
+  @UseGuards(AccessTokenGuard)
+  async createCity(
+    @Body() dto: CreateCityDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.statesService.createCity(dto, req.user?.username_lower);
   }
 
   @Put(':id')
-  @UseGuards(AccessTokenGuard, AdminGuard)
-  async updateCity(@Param('id') id: string, @Body() dto: UpdateCityDto) {
-    return this.statesService.updateCity(id, dto);
+  @UseGuards(AccessTokenGuard)
+  async updateCity(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateCityDto,
+  ) {
+    return this.statesService.updateCity(id, dto, req.user?.username_lower);
   }
 
   @Delete(':id')

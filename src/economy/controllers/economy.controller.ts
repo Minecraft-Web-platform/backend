@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -32,6 +35,12 @@ export class EconomyController {
     return this.economyService.createAccount(username, body);
   }
 
+  @Get('cards/my')
+  async getMyCards(@Req() req: AuthenticatedRequest) {
+    const username = req.user.username_lower;
+    return this.economyService.getMyCards(username);
+  }
+
   @Post('cards')
   async issueCard(
     @Req() req: AuthenticatedRequest,
@@ -39,6 +48,24 @@ export class EconomyController {
   ) {
     const username = req.user.username_lower;
     return this.economyService.issueCard(username, body.accountId);
+  }
+
+  @Patch('cards/:id/toggle-block')
+  async toggleBlockCard(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') cardId: string,
+  ) {
+    const username = req.user.username_lower;
+    return this.economyService.toggleBlockCard(username, cardId);
+  }
+
+  @Delete('cards/:id')
+  async deleteCard(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') cardId: string,
+  ) {
+    const username = req.user.username_lower;
+    return this.economyService.deleteCard(username, cardId);
   }
 
   @Post('transfers')

@@ -8,6 +8,7 @@ import { Company } from './entities/company.entity';
 import { CompanyShare } from './entities/company-share.entity';
 import { StateEntity } from '../states/entities/state.entity';
 import { CityEntity } from '../states/entities/city.entity';
+import { User } from '../users/entities/user.entity';
 import { EconomyService } from './services/economy.service';
 import { CurrenciesService } from './services/currencies.service';
 import { CompaniesService } from './services/companies.service';
@@ -30,6 +31,7 @@ import { UsersModule } from '../users/users.module';
       CompanyShare,
       StateEntity,
       CityEntity,
+      User,
     ]),
     OwnJwtModule,
     UsersModule,

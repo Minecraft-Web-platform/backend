@@ -35,15 +35,19 @@ export class StatesController {
   }
 
   @Post()
-  @UseGuards(AccessTokenGuard, AdminGuard)
-  async createState(@Body() dto: CreateStateDto) {
-    return this.statesService.createState(dto);
+  @UseGuards(AccessTokenGuard)
+  async createState(@Req() req: AuthenticatedRequest, @Body() dto: CreateStateDto) {
+    return this.statesService.createState(dto, req.user.username_lower);
   }
 
   @Put(':id')
-  @UseGuards(AccessTokenGuard, AdminGuard)
-  async updateState(@Param('id') id: string, @Body() dto: UpdateStateDto) {
-    return this.statesService.updateState(id, dto);
+  @UseGuards(AccessTokenGuard)
+  async updateState(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateStateDto,
+  ) {
+    return this.statesService.updateState(id, dto, req.user.username_lower);
   }
 
   @Delete(':id')
@@ -79,5 +83,17 @@ export class StatesController {
   @UseGuards(AccessTokenGuard)
   async setDiplomacy(@Param('id') id: string, @Body() dto: SetDiplomacyDto) {
     return this.statesService.setDiplomacy(id, dto);
+  }
+
+  // --- National Bank ---
+  @Post(':id/bank')
+  @UseGuards(AccessTokenGuard)
+  async createNationalBank(
+    @Param('id') id: string,
+    @Body() dto: { name?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const username = req.user?.username_lower || '';
+    return this.statesService.createNationalBank(id, username, dto?.name);
   }
 }

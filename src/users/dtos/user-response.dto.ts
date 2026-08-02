@@ -9,6 +9,10 @@ export class UserResponseDto {
   public lastIp: string;
   public avatar_img: string | null;
   public registrationDate: string;
+  public cityId: string | null;
+  public stateId: string | null;
+  public cityName: string | null;
+  public stateName: string | null;
 
   constructor(user: User) {
     this.id = user.id;
@@ -19,5 +23,9 @@ export class UserResponseDto {
     this.lastIp = user.data.last_ip || '';
     this.avatar_img = user.avatarUrl;
     this.registrationDate = user.data.registration_date;
+    this.cityId = user.cityId || null;
+    this.stateId = user.stateId || null;
+    this.cityName = user.city?.name || null;
+    this.stateName = user.state?.name || null;
   }
 }

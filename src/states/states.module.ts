@@ -13,6 +13,7 @@ import { ElectionEntity } from './entities/election.entity';
 import { ElectionCandidateEntity } from './entities/election-candidate.entity';
 import { ElectionVoteEntity } from './entities/election-vote.entity';
 import { User } from '../users/entities/user.entity';
+import { Account } from '../economy/entities/account.entity';
 import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
 
@@ -28,6 +29,7 @@ import { UsersModule } from '../users/users.module';
       ElectionCandidateEntity,
       ElectionVoteEntity,
       User,
+      Account,
     ]),
     OwnJwtModule,
     UsersModule,

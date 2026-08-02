@@ -32,4 +32,6 @@ export class Account {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  bankName?: string;
 }

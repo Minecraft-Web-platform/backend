@@ -30,6 +30,7 @@ export class CurrenciesController {
       code: string;
       name: string;
       minecraftItemId?: string;
+      kopeckItemId?: string;
       minecraftEnchantment?: string;
     },
   ) {

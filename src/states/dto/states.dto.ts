@@ -8,6 +8,8 @@ export class CreateStateDto {
   flagUrl?: string;
   leaderUsername?: string;
   capitalCityId?: string;
+  taxRate?: number;
+  treasuryAccountNumber?: string;
 }
 
 export class UpdateStateDto {
@@ -16,6 +18,8 @@ export class UpdateStateDto {
   flagUrl?: string;
   leaderUsername?: string;
   capitalCityId?: string;
+  taxRate?: number;
+  treasuryAccountNumber?: string;
 }
 
 export class CreateCityDto {
@@ -24,6 +28,8 @@ export class CreateCityDto {
   flagUrl?: string;
   mayorUsername?: string;
   stateId?: string;
+  taxRate?: number;
+  treasuryAccountNumber?: string;
 }
 
 export class UpdateCityDto {
@@ -32,6 +38,8 @@ export class UpdateCityDto {
   flagUrl?: string;
   mayorUsername?: string;
   stateId?: string;
+  taxRate?: number;
+  treasuryAccountNumber?: string;
 }
 
 export class SetDiplomacyDto {

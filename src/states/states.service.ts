@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StateEntity } from './entities/state.entity';
@@ -10,6 +10,7 @@ import { ElectionEntity } from './entities/election.entity';
 import { ElectionCandidateEntity } from './entities/election-candidate.entity';
 import { ElectionVoteEntity } from './entities/election-vote.entity';
 import { User } from '../users/entities/user.entity';
+import { Account } from '../economy/entities/account.entity';
 import {
   CreateCityDto,
   CreateCitizenshipRequestDto,
@@ -45,6 +46,8 @@ export class StatesService {
     private readonly voteRepo: Repository<ElectionVoteEntity>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Account)
+    private readonly accountRepo: Repository<Account>,
   ) {}
 
   // --- States ---
@@ -66,15 +69,86 @@ export class StatesService {
     return state;
   }
 
-  async createState(dto: CreateStateDto): Promise<StateEntity> {
+  async createState(dto: CreateStateDto, creatorUsername?: string): Promise<StateEntity> {
+    if (!dto.leaderUsername && creatorUsername) {
+      dto.leaderUsername = creatorUsername;
+    }
     const state = this.stateRepo.create(dto);
+    const savedState = await this.stateRepo.save(state);
+    if (savedState.leaderUsername) {
+      await this.userRepo.update(
+        { username_lower: savedState.leaderUsername.toLowerCase() },
+        { stateId: savedState.id },
+      );
+    }
+    return savedState;
+  }
+
+  async updateState(
+    id: string,
+    dto: UpdateStateDto,
+    username?: string,
+  ): Promise<StateEntity> {
+    const state = await this.getStateById(id);
+    if (username) {
+      const user = await this.userRepo.findOne({
+        where: { username_lower: username.toLowerCase() },
+      });
+      const isLeader =
+        state.leaderUsername &&
+        state.leaderUsername.toLowerCase() === username.toLowerCase();
+      if (!isLeader && !user?.isAdmin) {
+        throw new ForbiddenException(
+          'Только президент государства или администратор могут вносить изменения в государство',
+        );
+      }
+    }
+    if (dto.taxRate !== undefined) {
+      if (dto.taxRate < 0 || dto.taxRate > 100) {
+        throw new BadRequestException('Ставка налога должна быть от 0 до 100%');
+      }
+    }
+    Object.assign(state, dto);
     return this.stateRepo.save(state);
   }
 
-  async updateState(id: string, dto: UpdateStateDto): Promise<StateEntity> {
-    const state = await this.getStateById(id);
-    Object.assign(state, dto);
-    return this.stateRepo.save(state);
+  async createNationalBank(
+    stateId: string,
+    username: string,
+    bankName?: string,
+  ): Promise<Account> {
+    const state = await this.getStateById(stateId);
+    if (
+      !state.leaderUsername ||
+      state.leaderUsername.toLowerCase() !== username.toLowerCase()
+    ) {
+      throw new ForbiddenException(
+        'Только правитель государства может учреждать Национальный банк',
+      );
+    }
+    if (state.treasuryAccountNumber) {
+      throw new BadRequestException(
+        'Национальный банк этого государства уже учрежден!',
+      );
+    }
+
+    const accountNumber =
+      '40817' +
+      Math.floor(100000000000000 + Math.random() * 900000000000000).toString();
+
+    const account = this.accountRepo.create({
+      accountNumber,
+      ownerUsername: bankName || `Национальный Банк ${state.name}`,
+      type: 'treasury',
+      balance: 10000,
+      currencyCode: 'PENDING',
+    });
+    const savedAccount = await this.accountRepo.save(account);
+
+    state.treasuryAccountNumber = savedAccount.accountNumber;
+    await this.stateRepo.save(state);
+
+    return savedAccount;
   }
 
   async deleteState(id: string): Promise<void> {
@@ -105,13 +179,52 @@ export class StatesService {
     return city;
   }
 
-  async createCity(dto: CreateCityDto): Promise<CityEntity> {
-    const city = this.cityRepo.create(dto);
-    return this.cityRepo.save(city);
+  async createCity(
+    dto: CreateCityDto,
+    creatorUsername?: string,
+  ): Promise<CityEntity> {
+    const mayor = dto.mayorUsername || creatorUsername;
+    const city = this.cityRepo.create({
+      ...dto,
+      mayorUsername: mayor,
+    });
+    const savedCity = await this.cityRepo.save(city);
+    if (mayor) {
+      await this.userRepo.update(
+        { username_lower: mayor.toLowerCase() },
+        { cityId: savedCity.id },
+      );
+    }
+    return savedCity;
   }
 
-  async updateCity(id: string, dto: UpdateCityDto): Promise<CityEntity> {
+  async updateCity(
+    id: string,
+    dto: UpdateCityDto,
+    username?: string,
+  ): Promise<CityEntity> {
     const city = await this.getCityById(id);
+    if (username) {
+      const user = await this.userRepo.findOne({
+        where: { username_lower: username.toLowerCase() },
+      });
+      const isMayor =
+        city.mayorUsername &&
+        city.mayorUsername.toLowerCase() === username.toLowerCase();
+      const isPresident =
+        city.state?.leaderUsername &&
+        city.state.leaderUsername.toLowerCase() === username.toLowerCase();
+      if (!isMayor && !isPresident && !user?.isAdmin) {
+        throw new ForbiddenException(
+          'Только мэр города, президент государства или администратор могут редактировать город',
+        );
+      }
+    }
+    if (dto.taxRate !== undefined) {
+      if (dto.taxRate < 0 || dto.taxRate > 100) {
+        throw new BadRequestException('Ставка налога должна быть от 0 до 100%');
+      }
+    }
     Object.assign(city, dto);
     return this.cityRepo.save(city);
   }
@@ -132,7 +245,10 @@ export class StatesService {
   }
 
   async createDecree(stateId: string, dto: CreateDecreeDto, authorUsername: string): Promise<StateDecreeEntity> {
-    await this.getStateById(stateId);
+    const state = await this.getStateById(stateId);
+    if (!state.leaderUsername || state.leaderUsername.toLowerCase() !== authorUsername.toLowerCase()) {
+      throw new ForbiddenException('Только президент государства может публиковать указы и законы');
+    }
     const decree = this.decreeRepo.create({
       stateId,
       title: dto.title,

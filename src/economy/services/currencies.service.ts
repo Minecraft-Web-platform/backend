@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Currency } from '../entities/currency.entity';
 import { StateEntity } from '../../states/entities/state.entity';
+import { Account } from '../entities/account.entity';
 
 @Injectable()
 export class CurrenciesService {
@@ -16,6 +17,8 @@ export class CurrenciesService {
     private readonly currencyRepository: Repository<Currency>,
     @InjectRepository(StateEntity)
     private readonly stateRepository: Repository<StateEntity>,
+    @InjectRepository(Account)
+    private readonly accountRepository: Repository<Account>,
   ) {}
 
   public async getAllCurrencies(): Promise<Currency[]> {
@@ -40,6 +43,7 @@ export class CurrenciesService {
       code: string;
       name: string;
       minecraftItemId?: string;
+      kopeckItemId?: string;
       minecraftEnchantment?: string;
     },
   ): Promise<Currency> {
@@ -63,6 +67,20 @@ export class CurrenciesService {
           'Только правитель государства может создавать национальную валюту',
         );
       }
+      if (!state.treasuryAccountNumber) {
+        throw new BadRequestException(
+          'Сначала необходимо учредить Национальный банк государства (счёт казны)!',
+        );
+      }
+      const existingStateCur = await this.currencyRepository.findOne({
+        where: { stateId: dto.stateId },
+      });
+      if (existingStateCur) {
+        throw new BadRequestException(
+          'У этого государства уже выпущена национальная валюта: ' +
+            existingStateCur.code,
+        );
+      }
     }
 
     const currency = this.currencyRepository.create({
@@ -70,6 +88,7 @@ export class CurrenciesService {
       code: dto.code.toUpperCase(),
       name: dto.name,
       minecraftItemId: dto.minecraftItemId || 'minecraft:diamond',
+      kopeckItemId: dto.kopeckItemId || 'minecraft:gold_nugget',
       minecraftEnchantment: dto.minecraftEnchantment || 'unbreaking:3',
       totalIssued: 1000,
       reserves: 1000,
@@ -78,6 +97,19 @@ export class CurrenciesService {
     });
 
     const saved = await this.currencyRepository.save(currency);
+
+    if (dto.stateId) {
+      const state = await this.stateRepository.findOne({
+        where: { id: dto.stateId },
+      });
+      if (state && state.treasuryAccountNumber) {
+        await this.accountRepository.update(
+          { accountNumber: state.treasuryAccountNumber },
+          { currencyCode: saved.code },
+        );
+      }
+    }
+
     return this.recalculateExchangeRate(saved);
   }
 

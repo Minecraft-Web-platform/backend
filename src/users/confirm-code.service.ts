@@ -11,14 +11,15 @@ export class ConfirmCodeService implements IConfirmCodeService {
   constructor(private readonly confirmCodeRepo: ConfirmCodeRepository) {}
 
   async createCode(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode> {
-    await this.deactivateCode(username, type);
+    const userLower = username.toLowerCase();
+    await this.deactivateCode(userLower, type);
 
     const code = this.generateCode();
     const expires_at = new Date(Date.now() + 15 * 60 * 1000);
 
     return this.confirmCodeRepo.createCode({
       id: uuidv4(),
-      player_username: username,
+      player_username: userLower,
       type,
       code,
       expires_at,
@@ -27,15 +28,15 @@ export class ConfirmCodeService implements IConfirmCodeService {
   }
 
   async getCodesForUser(username: string): Promise<ConfirmationCode[]> {
-    return this.confirmCodeRepo.findAllByUsername(username);
+    return this.confirmCodeRepo.findAllByUsername(username.toLowerCase());
   }
 
   async getCodeForUserAndType(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode | null> {
-    return this.confirmCodeRepo.findOneByUserAndType(username, type);
+    return this.confirmCodeRepo.findOneByUserAndType(username.toLowerCase(), type);
   }
 
   async getActiveCode(username: string, type: ConfirmCodeActions): Promise<ConfirmationCode | null> {
-    const codeEntity = await this.confirmCodeRepo.findOneByUserAndType(username, type);
+    const codeEntity = await this.confirmCodeRepo.findOneByUserAndType(username.toLowerCase(), type);
 
     if (!codeEntity || codeEntity.used || (codeEntity.expires_at && codeEntity.expires_at < new Date())) {
       return null;
@@ -45,11 +46,11 @@ export class ConfirmCodeService implements IConfirmCodeService {
   }
 
   async deactivateCode(username: string, type: ConfirmCodeActions): Promise<void> {
-    await this.confirmCodeRepo.deactivate(username, type);
+    await this.confirmCodeRepo.deactivate(username.toLowerCase(), type);
   }
 
   async deactivateAllCodes(username: string): Promise<void> {
-    await this.confirmCodeRepo.deactivateAll(username);
+    await this.confirmCodeRepo.deactivateAll(username.toLowerCase());
   }
 
   async cleanupExpiredCodes(): Promise<void> {

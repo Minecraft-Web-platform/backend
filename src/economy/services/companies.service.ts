@@ -9,6 +9,8 @@ import { Company } from '../entities/company.entity';
 import { Account } from '../entities/account.entity';
 import { CityEntity } from '../../states/entities/city.entity';
 import { StateEntity } from '../../states/entities/state.entity';
+import { User } from '../../users/entities/user.entity';
+import { EconomyService } from './economy.service';
 
 @Injectable()
 export class CompaniesService {
@@ -21,6 +23,9 @@ export class CompaniesService {
     private readonly cityRepository: Repository<CityEntity>,
     @InjectRepository(StateEntity)
     private readonly stateRepository: Repository<StateEntity>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly economyService: EconomyService,
   ) {}
 
   public async getAllCompanies(filters?: {
@@ -55,6 +60,25 @@ export class CompaniesService {
       stateId?: string;
     },
   ): Promise<Company> {
+    const user = await this.userRepository.findOne({
+      where: { username_lower: username.toLowerCase() },
+    });
+    if (!user) {
+      throw new NotFoundException('Игрок не найден');
+    }
+    if (!user.emailIsConfirmed) {
+      throw new BadRequestException(
+        'Регистрировать фирму может только игрок с подтвержденной почтой',
+      );
+    }
+    if (!user.cityId && !user.stateId) {
+      throw new BadRequestException(
+        'Регистрировать фирму могут только граждане какого-либо государства или города',
+      );
+    }
+    const nationalCurrency =
+      await this.economyService.assertUserStateHasCurrency(username);
+
     const existing = await this.companyRepository.findOne({
       where: { name: dto.name },
     });
@@ -89,13 +113,14 @@ export class CompaniesService {
       ownerUsername: username.toLowerCase(),
       type: 'company',
       balance: 2000,
-      currencyCode: 'AR',
+      currencyCode: nationalCurrency.code,
     });
     const savedAccount = await this.accountRepository.save(account);
 
     const company = this.companyRepository.create({
       name: dto.name,
       description: dto.description || '',
+      // TODO: сделать загрузку лого компании на s3 хранилище, но пока что этого не будем делать.
       logoUrl: dto.logoUrl || '',
       ownerUsername: username.toLowerCase(),
       cityId: dto.cityId || null,

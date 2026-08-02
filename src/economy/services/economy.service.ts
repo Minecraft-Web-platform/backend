@@ -8,6 +8,9 @@ import { Repository } from 'typeorm';
 import { Account, AccountType } from '../entities/account.entity';
 import { CreditCard } from '../entities/credit-card.entity';
 import { Transfer } from '../entities/transfer.entity';
+import { Company } from '../entities/company.entity';
+import { Currency } from '../entities/currency.entity';
+import { User } from '../../users/entities/user.entity';
 import { CityEntity } from '../../states/entities/city.entity';
 import { StateEntity } from '../../states/entities/state.entity';
 
@@ -24,7 +27,58 @@ export class EconomyService {
     private readonly cityRepository: Repository<CityEntity>,
     @InjectRepository(StateEntity)
     private readonly stateRepository: Repository<StateEntity>,
+    @InjectRepository(Company)
+    private readonly companyRepository: Repository<Company>,
+    @InjectRepository(Currency)
+    private readonly currencyRepository: Repository<Currency>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
+
+  public async assertUserStateHasCurrency(username: string): Promise<Currency> {
+    const user = await this.userRepository.findOne({
+      where: { username_lower: username.toLowerCase() },
+    });
+    if (!user) {
+      throw new NotFoundException('Игрок не найден');
+    }
+    let stateId = user.stateId;
+    if (!stateId && user.cityId) {
+      const city = await this.cityRepository.findOne({
+        where: { id: user.cityId },
+      });
+      if (city?.stateId) {
+        stateId = city.stateId;
+      }
+    }
+    if (!stateId) {
+      throw new BadRequestException(
+        'Для финансовых операций (счета, фирмы, биржа) вы должны быть гражданином государства, в котором выпущена валюта!',
+      );
+    }
+    const currency = await this.currencyRepository.findOne({
+      where: { stateId },
+    });
+    if (!currency) {
+      throw new BadRequestException(
+        'В вашем государстве ещё не создана национальная валюта! Национальному банку необходимо сначала выпустить валюту для доступа к счетам, фирмам и бирже.',
+      );
+    }
+    return currency;
+  }
+
+  private async getBankNamesMap(): Promise<Map<string, string>> {
+    const treasuryAccounts = await this.accountRepository.find({
+      where: { type: 'treasury' },
+    });
+    const map = new Map<string, string>();
+    for (const t of treasuryAccounts) {
+      if (t.currencyCode) {
+        map.set(t.currencyCode, t.ownerUsername);
+      }
+    }
+    return map;
+  }
 
   public async getMyAccounts(username: string): Promise<{
     accounts: Account[];
@@ -40,16 +94,53 @@ export class EconomyService {
     if (accountIds.length > 0) {
       cards = await this.cardRepository
         .createQueryBuilder('card')
+        .leftJoinAndSelect('card.account', 'account')
         .where('card.accountId IN (:...ids)', { ids: accountIds })
+        .orderBy('card.createdAt', 'DESC')
         .getMany();
     }
-    return { accounts, cards };
+
+    const bankMap = await this.getBankNamesMap();
+    const defaultBankName =
+      bankMap.values().next().value || 'НАЦИОНАЛЬНЫЙ БАНК';
+
+    const enrichedAccounts = accounts.map((acc) => {
+      acc.bankName = bankMap.get(acc.currencyCode) || defaultBankName;
+      return acc;
+    });
+
+    const enrichedCards = cards.map((card) => {
+      const acc =
+        card.account || accounts.find((a) => a.id === card.accountId);
+      card.bankName =
+        (acc && bankMap.get(acc.currencyCode)) || defaultBankName;
+      return card;
+    });
+
+    return { accounts: enrichedAccounts, cards: enrichedCards };
   }
 
   public async createAccount(
     username: string,
     dto: { type?: AccountType; currencyCode?: string; ownerUsername?: string },
   ): Promise<Account> {
+    if (dto.type && dto.type !== 'personal') {
+      throw new BadRequestException(
+        'Вручную можно создавать только личные счета. Коммерческий счет создается при регистрации компании, а казначейский — при учреждении Национального Банка.',
+      );
+    }
+    const stateCurrency = await this.assertUserStateHasCurrency(username);
+    let currencyCode = stateCurrency.code;
+    if (dto.currencyCode && dto.currencyCode !== 'AR') {
+      const exists = await this.currencyRepository.findOne({
+        where: { code: dto.currencyCode },
+      });
+      if (!exists) {
+        throw new NotFoundException(`Валюта ${dto.currencyCode} не найдена на сервере`);
+      }
+      currencyCode = exists.code;
+    }
+
     const owner = dto.ownerUsername
       ? dto.ownerUsername.toLowerCase()
       : username.toLowerCase();
@@ -60,9 +151,9 @@ export class EconomyService {
     const account = this.accountRepository.create({
       accountNumber,
       ownerUsername: owner,
-      type: dto.type || 'personal',
+      type: 'personal',
       balance: 1000,
-      currencyCode: dto.currencyCode || 'AR',
+      currencyCode,
     });
 
     return this.accountRepository.save(account);
@@ -99,6 +190,69 @@ export class EconomyService {
     return this.cardRepository.save(card);
   }
 
+  public async getMyCards(username: string): Promise<CreditCard[]> {
+    const lower = username.toLowerCase();
+    const accounts = await this.accountRepository.find({
+      where: { ownerUsername: lower },
+    });
+    const accountIds = accounts.map((a) => a.id);
+    if (accountIds.length === 0) return [];
+    const cards = await this.cardRepository
+      .createQueryBuilder('card')
+      .leftJoinAndSelect('card.account', 'account')
+      .where('card.accountId IN (:...ids)', { ids: accountIds })
+      .orderBy('card.createdAt', 'DESC')
+      .getMany();
+
+    const bankMap = await this.getBankNamesMap();
+    const defaultBankName =
+      bankMap.values().next().value || 'НАЦИОНАЛЬНЫЙ БАНК';
+
+    return cards.map((card) => {
+      const acc =
+        card.account || accounts.find((a) => a.id === card.accountId);
+      card.bankName =
+        (acc && bankMap.get(acc.currencyCode)) || defaultBankName;
+      return card;
+    });
+  }
+
+  public async toggleBlockCard(
+    username: string,
+    cardId: string,
+  ): Promise<CreditCard> {
+    const card = await this.cardRepository.findOne({
+      where: { id: cardId },
+      relations: ['account'],
+    });
+    if (!card) {
+      throw new NotFoundException('Карта не найдена');
+    }
+    if (card.account?.ownerUsername !== username.toLowerCase()) {
+      throw new BadRequestException('Вы не являетесь владельцем этой карты');
+    }
+    card.isBlocked = !card.isBlocked;
+    return this.cardRepository.save(card);
+  }
+
+  public async deleteCard(
+    username: string,
+    cardId: string,
+  ): Promise<{ success: true }> {
+    const card = await this.cardRepository.findOne({
+      where: { id: cardId },
+      relations: ['account'],
+    });
+    if (!card) {
+      throw new NotFoundException('Карта не найдена');
+    }
+    if (card.account?.ownerUsername !== username.toLowerCase()) {
+      throw new BadRequestException('Вы не являетесь владельцем этой карты');
+    }
+    await this.cardRepository.remove(card);
+    return { success: true };
+  }
+
   public async transferMoney(
     username: string,
     dto: {
@@ -108,6 +262,7 @@ export class EconomyService {
       description?: string;
     },
   ): Promise<Transfer> {
+    await this.assertUserStateHasCurrency(username);
     if (dto.amount <= 0) {
       throw new BadRequestException('Сумма перевода должна быть больше 0');
     }
@@ -135,14 +290,51 @@ export class EconomyService {
       throw new BadRequestException('Нельзя перевести средства самому себе');
     }
 
-    let taxAmount = 0;
-    // Если получатель - компания, проверим юрисдикцию и удержим налог в казну города
-    if (receiverAccount.type === 'company') {
-      const taxRate = 5.0; // 5% налог
-      taxAmount = Number(((dto.amount * taxRate) / 100).toFixed(2));
+    // Проверим необходимость конвертации валют
+    let targetAmount = dto.amount;
+    let conversionNote = '';
+    if (senderAccount.currencyCode !== receiverAccount.currencyCode) {
+      const senderCurr = await this.currencyRepository.findOne({
+        where: { code: senderAccount.currencyCode },
+      });
+      const receiverCurr = await this.currencyRepository.findOne({
+        where: { code: receiverAccount.currencyCode },
+      });
+      const senderRate = senderCurr?.exchangeRate || 1.0;
+      const receiverRate = receiverCurr?.exchangeRate || 1.0;
+
+      targetAmount = Number(
+        ((dto.amount * senderRate) / receiverRate).toFixed(2),
+      );
+      conversionNote = ` [Конвертация: ${dto.amount} ${senderAccount.currencyCode} ➔ ${targetAmount} ${receiverAccount.currencyCode}]`;
     }
 
-    const netAmount = Number((dto.amount - taxAmount).toFixed(2));
+    let taxAmount = 0;
+    // Если получатель - компания, проверим юрисдикцию и рассчитаем налог по ставке государства/города
+    if (receiverAccount.type === 'company') {
+      let taxRate = 5.0; // ставка по умолчанию 5%
+      const company = await this.companyRepository.findOne({
+        where: { accountId: receiverAccount.id },
+      });
+      if (company?.stateId) {
+        const state = await this.stateRepository.findOne({
+          where: { id: company.stateId },
+        });
+        if (state && state.taxRate !== undefined && state.taxRate !== null) {
+          taxRate = Number(state.taxRate);
+        }
+      } else if (company?.cityId) {
+        const city = await this.cityRepository.findOne({
+          where: { id: company.cityId },
+        });
+        if (city && city.taxRate !== undefined && city.taxRate !== null) {
+          taxRate = Number(city.taxRate);
+        }
+      }
+      taxAmount = Number(((targetAmount * taxRate) / 100).toFixed(2));
+    }
+
+    const netAmount = Number((targetAmount - taxAmount).toFixed(2));
 
     senderAccount.balance = Number(
       (senderAccount.balance - dto.amount).toFixed(2),
@@ -159,7 +351,7 @@ export class EconomyService {
       amount: dto.amount,
       currencyCode: senderAccount.currencyCode,
       taxAmount,
-      description: dto.description || 'Перевод средств',
+      description: (dto.description || 'Перевод средств') + conversionNote,
     });
 
     return this.transferRepository.save(transfer);

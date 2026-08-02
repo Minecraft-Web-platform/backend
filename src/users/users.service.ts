@@ -28,7 +28,7 @@ export class UsersService implements UsersServiceContract {
   private bucket = 'profile-pictures';
 
   public async getAll(): Promise<User[]> {
-    return this.usersRepository.find();
+    return this.usersRepository.find({ relations: ['city', 'state'] });
   }
 
   /**
@@ -39,7 +39,10 @@ export class UsersService implements UsersServiceContract {
   public async getByUsername(username: string): Promise<User | null> {
     const usernameLower = username.toLowerCase();
 
-    return this.usersRepository.findOne({ where: { username_lower: usernameLower }, relations: ['codes'] });
+    return this.usersRepository.findOne({
+      where: { username_lower: usernameLower },
+      relations: ['codes', 'city', 'state'],
+    });
   }
 
   /**
@@ -97,9 +100,9 @@ export class UsersService implements UsersServiceContract {
   }
 
   public async update(username: string, dataToUpdate: Partial<Omit<User, 'username'>>) {
-    await this.usersRepository.update({ username: username.toLowerCase() }, dataToUpdate);
+    await this.usersRepository.update({ username_lower: username.toLowerCase() }, dataToUpdate);
 
-    return this.usersRepository.findOne({ where: { username } });
+    return this.getByUsername(username);
   }
 
   public async delete(id: number): Promise<boolean> {

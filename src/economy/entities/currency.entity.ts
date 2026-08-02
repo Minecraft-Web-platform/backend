@@ -25,6 +25,9 @@ export class Currency {
   @Column({ default: 'minecraft:diamond' })
   minecraftItemId: string; // предмет в Minecraft (получение только через креатив)
 
+  @Column({ name: 'kopeck_item_id', default: 'minecraft:gold_nugget' })
+  kopeckItemId: string; // предмет для копеек (1/100 основной валюты)
+
   @Column({ default: 'unbreaking:3' })
   minecraftEnchantment: string; // чары, которые нельзя получить в обычном выживании
 

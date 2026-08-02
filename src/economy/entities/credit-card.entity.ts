@@ -36,4 +36,6 @@ export class CreditCard {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  bankName?: string;
 }
