@@ -17,6 +17,18 @@ export class StateEntity {
   @Column({ name: 'flag_url', type: 'varchar', length: 500, nullable: true })
   flagUrl: string | null;
 
+  @Column({ name: 'coat_of_arms_url', type: 'varchar', length: 500, nullable: true })
+  coatOfArmsUrl?: string | null;
+
+  @Column({ name: 'nationality_male', type: 'varchar', length: 100, nullable: true })
+  nationalityMale?: string | null;
+
+  @Column({ name: 'nationality_female', type: 'varchar', length: 100, nullable: true })
+  nationalityFemale?: string | null;
+
+  @Column({ name: 'citizenship_name', type: 'varchar', length: 100, nullable: true })
+  citizenshipName?: string | null;
+
   @Column({ name: 'leader_username', type: 'varchar', length: 255, nullable: true })
   leaderUsername: string | null;
 

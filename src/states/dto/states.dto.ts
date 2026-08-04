@@ -6,6 +6,10 @@ export class CreateStateDto {
   name: string;
   description?: string;
   flagUrl?: string;
+  coatOfArmsUrl?: string;
+  nationalityMale?: string;
+  nationalityFemale?: string;
+  citizenshipName?: string;
   leaderUsername?: string;
   capitalCityId?: string;
   taxRate?: number;
@@ -16,6 +20,10 @@ export class UpdateStateDto {
   name?: string;
   description?: string;
   flagUrl?: string;
+  coatOfArmsUrl?: string;
+  nationalityMale?: string;
+  nationalityFemale?: string;
+  citizenshipName?: string;
   leaderUsername?: string;
   capitalCityId?: string;
   taxRate?: number;

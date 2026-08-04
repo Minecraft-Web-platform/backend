@@ -2,6 +2,7 @@ import { RegisterDto } from './dtos/register.dto';
 import { LoginDto } from './dtos/login.dto';
 import { TokenPair } from './types/token-pair.type';
 import { UserResponseDto } from 'src/users/dtos/user-response.dto';
+import { MeResponseDto } from './dtos/me-response.dto';
 import { JwtPayload } from 'src/own-jwt/types/payload.type';
 
 export interface AuthServiceContract {
@@ -33,7 +34,7 @@ export interface AuthServiceContract {
   /**
    * @description sends info about the user
    */
-  getInfoAboutMe(username: string): Promise<UserResponseDto>;
+  getInfoAboutMe(username: string): Promise<MeResponseDto>;
 
   /**
    * @description initializes the password resetting and sends xxx-xxx code to the mail

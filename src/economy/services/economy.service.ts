@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { Account, AccountType } from '../entities/account.entity';
 import { CreditCard } from '../entities/credit-card.entity';
 import { Transfer } from '../entities/transfer.entity';
@@ -62,6 +62,21 @@ export class EconomyService {
     if (!currency) {
       throw new BadRequestException(
         'В вашем государстве ещё не создана национальная валюта! Национальному банку необходимо сначала выпустить валюту для доступа к счетам, фирмам и бирже.',
+      );
+    }
+    return currency;
+  }
+
+  public async getCurrencyForState(stateId?: string): Promise<Currency> {
+    if (!stateId) {
+      throw new BadRequestException('Не указано государство юрисдикции');
+    }
+    const currency = await this.currencyRepository.findOne({
+      where: [{ stateId }, { stateId: IsNull() }],
+    });
+    if (!currency) {
+      throw new BadRequestException(
+        'В выбранном государстве ещё не создана национальная валюта и не открыт Национальный банк!',
       );
     }
     return currency;
@@ -129,9 +144,8 @@ export class EconomyService {
         'Вручную можно создавать только личные счета. Коммерческий счет создается при регистрации компании, а казначейский — при учреждении Национального Банка.',
       );
     }
-    const stateCurrency = await this.assertUserStateHasCurrency(username);
-    let currencyCode = stateCurrency.code;
-    if (dto.currencyCode && dto.currencyCode !== 'AR') {
+    let currencyCode: string;
+    if (dto.currencyCode) {
       const exists = await this.currencyRepository.findOne({
         where: { code: dto.currencyCode },
       });
@@ -139,6 +153,9 @@ export class EconomyService {
         throw new NotFoundException(`Валюта ${dto.currencyCode} не найдена на сервере`);
       }
       currencyCode = exists.code;
+    } else {
+      const stateCurrency = await this.assertUserStateHasCurrency(username);
+      currencyCode = stateCurrency.code;
     }
 
     const owner = dto.ownerUsername
@@ -152,7 +169,7 @@ export class EconomyService {
       accountNumber,
       ownerUsername: owner,
       type: 'personal',
-      balance: 1000,
+      balance: 0,
       currencyCode,
     });
 

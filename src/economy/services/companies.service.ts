@@ -76,8 +76,22 @@ export class CompaniesService {
         'Регистрировать фирму могут только граждане какого-либо государства или города',
       );
     }
-    const nationalCurrency =
-      await this.economyService.assertUserStateHasCurrency(username);
+    let targetStateId = dto.stateId;
+    if (!targetStateId && dto.cityId) {
+      const cityObj = await this.cityRepository.findOne({
+        where: { id: dto.cityId },
+      });
+      if (cityObj?.stateId) {
+        targetStateId = cityObj.stateId;
+      }
+    }
+
+    let nationalCurrency;
+    if (targetStateId) {
+      nationalCurrency = await this.economyService.getCurrencyForState(targetStateId);
+    } else {
+      nationalCurrency = await this.economyService.assertUserStateHasCurrency(username);
+    }
 
     const existing = await this.companyRepository.findOne({
       where: { name: dto.name },
@@ -112,7 +126,7 @@ export class CompaniesService {
       accountNumber,
       ownerUsername: username.toLowerCase(),
       type: 'company',
-      balance: 2000,
+      balance: 0,
       currencyCode: nationalCurrency.code,
     });
     const savedAccount = await this.accountRepository.save(account);

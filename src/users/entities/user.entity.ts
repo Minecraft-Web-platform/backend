@@ -13,6 +13,8 @@ export type UserDataField = {
   registration_date: string;
 };
 
+export type UserRole = 'player' | 'economist' | 'admin';
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
@@ -34,7 +36,18 @@ export class User {
   emailIsConfirmed: boolean;
 
   @Column({ name: 'is_admin', default: false })
-  isAdmin: boolean;
+  is_admin: boolean;
+
+  @Column({ name: 'role', type: 'varchar', default: 'player' })
+  role: UserRole;
+
+  get isAdmin(): boolean {
+    return this.role === 'admin' || this.is_admin;
+  }
+
+  get isEconomist(): boolean {
+    return this.role === 'economist' || this.role === 'admin' || this.isAdmin;
+  }
 
   @Column()
   uuid: string;

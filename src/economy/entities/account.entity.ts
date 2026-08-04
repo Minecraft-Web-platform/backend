@@ -24,7 +24,7 @@ export class Account {
   @Column({ type: 'varchar', default: 'personal' })
   type: AccountType;
 
-  @Column({ type: 'float', default: 1000 })
+  @Column({ type: 'float', default: 0 })
   balance: number;
 
   @Column({ default: 'AR' })

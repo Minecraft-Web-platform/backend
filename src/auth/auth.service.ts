@@ -20,6 +20,7 @@ import { EmailConfirmationStrategy } from 'src/email/strategies/email-confirmati
 import { RegisterDto } from './dtos/register.dto';
 import { LoginDto } from './dtos/login.dto';
 import { UserResponseDto } from 'src/users/dtos/user-response.dto';
+import { MeResponseDto } from './dtos/me-response.dto';
 
 import { JwtPayload } from 'src/own-jwt/types/payload.type';
 import { TokenPair } from './types/token-pair.type';
@@ -64,7 +65,8 @@ export class AuthService implements AuthServiceContract {
         online_account: 'UNKNOWN',
         registration_date: new Date().toISOString(),
       },
-      isAdmin: false,
+      role: 'player' as const,
+      is_admin: false,
       avatarUrl: null,
     };
 
@@ -152,14 +154,14 @@ export class AuthService implements AuthServiceContract {
     return { message: 'Email confirmed successfully' };
   }
 
-  public async getInfoAboutMe(username: string): Promise<UserResponseDto> {
+  public async getInfoAboutMe(username: string): Promise<MeResponseDto> {
     const userInDB = await this.usersService.getByUsername(username);
 
     if (!userInDB) {
       throw new UnauthorizedException('The user was not found');
     }
 
-    return new UserResponseDto(userInDB);
+    return new MeResponseDto(userInDB);
   }
 
   public async initPasswordReset(username: string): Promise<{ message: string }> {

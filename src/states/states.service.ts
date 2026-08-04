@@ -140,7 +140,7 @@ export class StatesService {
       accountNumber,
       ownerUsername: bankName || `Национальный Банк ${state.name}`,
       type: 'treasury',
-      balance: 10000,
+      balance: 0,
       currencyCode: 'PENDING',
     });
     const savedAccount = await this.accountRepo.save(account);
