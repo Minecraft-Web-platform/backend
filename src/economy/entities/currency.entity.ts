@@ -34,7 +34,7 @@ export class Currency {
   @Column({ type: 'float', default: 1000 })
   totalIssued: number; // общий объем эмиссии валюты
 
-  @Column({ type: 'float', default: 1000 })
+  @Column({ type: 'float', default: 0 })
   reserves: number; // резервы в казне в эталонном эквиваленте
 
   @Column({ type: 'float', default: 1.0 })

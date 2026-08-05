@@ -13,6 +13,7 @@ import { Currency } from '../entities/currency.entity';
 import { User } from '../../users/entities/user.entity';
 import { CityEntity } from '../../states/entities/city.entity';
 import { StateEntity } from '../../states/entities/state.entity';
+import { MinecraftRconService } from '../../minecraft-rcon/minecraft-rcon.service';
 
 @Injectable()
 export class EconomyService {
@@ -25,15 +26,16 @@ export class EconomyService {
     private readonly transferRepository: Repository<Transfer>,
     @InjectRepository(CityEntity)
     private readonly cityRepository: Repository<CityEntity>,
-    @InjectRepository(StateEntity)
-    private readonly stateRepository: Repository<StateEntity>,
     @InjectRepository(Company)
     private readonly companyRepository: Repository<Company>,
     @InjectRepository(Currency)
     private readonly currencyRepository: Repository<Currency>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-  ) {}
+    @InjectRepository(StateEntity)
+    private readonly stateRepository: Repository<StateEntity>,
+    private readonly rconService: MinecraftRconService,
+  ) { }
 
   public async assertUserStateHasCurrency(username: string): Promise<Currency> {
     const user = await this.userRepository.findOne({
@@ -412,5 +414,26 @@ export class EconomyService {
       where: { ownerUsername: identifier.toLowerCase(), type: 'personal' },
     });
     return byUsername || null;
+  }
+
+  public async checkTreasuryAccess(playerUsername: string, entityId: string, entityType: string): Promise<boolean> {
+    const usernameLower = playerUsername.toLowerCase();
+
+    if (entityType === 'personal') {
+      const user = await this.userRepository.findOne({ where: { username_lower: usernameLower } });
+      return user?.id === Number(entityId);
+    }
+
+    if (entityType === 'company') {
+      const company = await this.companyRepository.findOne({ where: { id: entityId } });
+      return company?.ownerUsername?.toLowerCase() === usernameLower;
+    }
+
+    if (entityType === 'state') {
+      const state = await this.stateRepository.findOne({ where: { id: entityId } });
+      return state?.leaderUsername?.toLowerCase() === usernameLower;
+    }
+
+    return false;
   }
 }

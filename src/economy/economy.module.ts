@@ -8,6 +8,7 @@ import { Company } from './entities/company.entity';
 import { CompanyShare } from './entities/company-share.entity';
 import { StateEntity } from '../states/entities/state.entity';
 import { CityEntity } from '../states/entities/city.entity';
+import { StateTreasuryItemEntity } from '../states/entities/state-treasury-item.entity';
 import { User } from '../users/entities/user.entity';
 import { EconomyService } from './services/economy.service';
 import { CurrenciesService } from './services/currencies.service';
@@ -17,8 +18,10 @@ import { EconomyController } from './controllers/economy.controller';
 import { CurrenciesController } from './controllers/currencies.controller';
 import { CompaniesController } from './controllers/companies.controller';
 import { StockExchangeController } from './controllers/stock-exchange.controller';
+import { TreasuryModController } from './controllers/treasury-mod.controller';
 import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
+import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
 
 @Module({
   imports: [
@@ -31,10 +34,12 @@ import { UsersModule } from '../users/users.module';
       CompanyShare,
       StateEntity,
       CityEntity,
+      StateTreasuryItemEntity,
       User,
     ]),
     OwnJwtModule,
     UsersModule,
+    MinecraftRconModule,
   ],
   providers: [
     EconomyService,
@@ -47,6 +52,7 @@ import { UsersModule } from '../users/users.module';
     CurrenciesController,
     CompaniesController,
     StockExchangeController,
+    TreasuryModController,
   ],
   exports: [
     EconomyService,

@@ -8,6 +8,7 @@ import { StateEntity } from './entities/state.entity';
 import { CityEntity } from './entities/city.entity';
 import { StateDiplomacyEntity } from './entities/state-diplomacy.entity';
 import { StateDecreeEntity } from './entities/state-decree.entity';
+import { StateTreasuryItemEntity } from './entities/state-treasury-item.entity';
 import { CitizenshipRequestEntity } from './entities/citizenship-request.entity';
 import { ElectionEntity } from './entities/election.entity';
 import { ElectionCandidateEntity } from './entities/election-candidate.entity';
@@ -16,6 +17,7 @@ import { User } from '../users/entities/user.entity';
 import { Account } from '../economy/entities/account.entity';
 import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
+import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
 
 @Module({
   imports: [
@@ -24,6 +26,7 @@ import { UsersModule } from '../users/users.module';
       CityEntity,
       StateDiplomacyEntity,
       StateDecreeEntity,
+      StateTreasuryItemEntity,
       CitizenshipRequestEntity,
       ElectionEntity,
       ElectionCandidateEntity,
@@ -33,6 +36,7 @@ import { UsersModule } from '../users/users.module';
     ]),
     OwnJwtModule,
     UsersModule,
+    MinecraftRconModule,
   ],
   providers: [StatesService],
   controllers: [StatesController, CitiesController, ElectionsController],

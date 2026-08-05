@@ -89,4 +89,13 @@ export class CitiesController {
   ) {
     return this.statesService.reviewCitizenshipRequest(requestId, dto);
   }
+
+  @Post(':id/leave')
+  @UseGuards(AccessTokenGuard)
+  async leaveCity(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.statesService.leaveCity(id, req.user?.username_lower);
+  }
 }

@@ -8,6 +8,7 @@ import {
   Put,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { StatesService } from './states.service';
 import {
@@ -95,5 +96,38 @@ export class StatesController {
   ) {
     const username = req.user?.username_lower || '';
     return this.statesService.createNationalBank(id, username, dto?.name);
+  }
+
+  // --- Treasury ---
+  @Get(':id/treasury')
+  async getTreasury(@Param('id') id: string) {
+    return this.statesService.getStateTreasury(id);
+  }
+
+  @Post(':id/treasury/digitize')
+  @UseGuards(AccessTokenGuard)
+  async digitizeTreasury(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const state = await this.statesService.getStateById(id);
+    if (!state.leaderUsername || state.leaderUsername.toLowerCase() !== req.user?.username_lower) {
+      throw new ForbiddenException('Только лидер государства может оцифровать казну');
+    }
+    return this.statesService.digitizeTreasury(id, 'state_reserve');
+  }
+
+  @Post(':id/treasury/withdraw')
+  @UseGuards(AccessTokenGuard)
+  async withdrawTreasury(
+    @Param('id') id: string,
+    @Body() dto: { minecraftItemId: string; quantity: number },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const state = await this.statesService.getStateById(id);
+    if (!state.leaderUsername || state.leaderUsername.toLowerCase() !== req.user?.username_lower) {
+      throw new ForbiddenException('Только лидер государства может вывести предметы из казны');
+    }
+    return this.statesService.withdrawTreasury(id, 'state_reserve', dto.minecraftItemId, dto.quantity);
   }
 }

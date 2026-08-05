@@ -5,5 +5,6 @@ import { MinecraftRconService } from './minecraft-rcon.service';
 @Module({
   controllers: [MinecraftRconController],
   providers: [MinecraftRconService],
+  exports: [MinecraftRconService],
 })
 export class MinecraftRconModule {}

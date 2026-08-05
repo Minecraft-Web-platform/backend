@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StateEntity } from './entities/state.entity';
@@ -9,8 +9,10 @@ import { CitizenshipRequestEntity } from './entities/citizenship-request.entity'
 import { ElectionEntity } from './entities/election.entity';
 import { ElectionCandidateEntity } from './entities/election-candidate.entity';
 import { ElectionVoteEntity } from './entities/election-vote.entity';
+import { StateTreasuryItemEntity } from './entities/state-treasury-item.entity';
 import { User } from '../users/entities/user.entity';
 import { Account } from '../economy/entities/account.entity';
+import { MinecraftRconService } from '../minecraft-rcon/minecraft-rcon.service';
 import {
   CreateCityDto,
   CreateCitizenshipRequestDto,
@@ -48,12 +50,15 @@ export class StatesService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(Account)
     private readonly accountRepo: Repository<Account>,
+    @InjectRepository(StateTreasuryItemEntity)
+    private readonly treasuryRepo: Repository<StateTreasuryItemEntity>,
+    private readonly rconService: MinecraftRconService,
   ) {}
 
   // --- States ---
   async getAllStates(): Promise<StateEntity[]> {
     return this.stateRepo.find({
-      relations: ['cities', 'citizens'],
+      relations: ['cities', 'cities.citizens', 'citizens'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -61,7 +66,7 @@ export class StatesService {
   async getStateById(id: string): Promise<StateEntity> {
     const state = await this.stateRepo.findOne({
       where: { id },
-      relations: ['cities', 'citizens', 'decrees'],
+      relations: ['cities', 'cities.citizens', 'citizens', 'decrees'],
     });
     if (!state) {
       throw new NotFoundException('Государство не найдено');
@@ -184,6 +189,16 @@ export class StatesService {
     creatorUsername?: string,
   ): Promise<CityEntity> {
     const mayor = dto.mayorUsername || creatorUsername;
+    if (mayor) {
+      const mayorUser = await this.userRepo.findOne({
+        where: { username_lower: mayor.toLowerCase() },
+      });
+      if (mayorUser?.cityId) {
+        throw new BadRequestException(
+          'Вы уже состоите в городе. Чтобы основать новый город, сначала покиньте текущий.',
+        );
+      }
+    }
     const city = this.cityRepo.create({
       ...dto,
       mayorUsername: mayor,
@@ -294,12 +309,47 @@ export class StatesService {
 
   async createCitizenshipRequest(username: string, dto: CreateCitizenshipRequestDto): Promise<CitizenshipRequestEntity> {
     const city = await this.getCityById(dto.cityId);
-    const existing = await this.requestRepo.findOne({
-      where: { username, cityId: dto.cityId, status: 'pending' },
+    const user = await this.userRepo.findOne({
+      where: { username_lower: username.toLowerCase() },
     });
-    if (existing) {
-      throw new BadRequestException('У вас уже есть активная заявка в этот город');
+
+    if (user?.cityId === city.id) {
+      throw new BadRequestException('Вы уже являетесь жителем этого города');
     }
+
+    if (user?.cityId) {
+      const currentCity = await this.cityRepo.findOne({
+        where: { id: user.cityId },
+      });
+      if (
+        currentCity?.mayorUsername &&
+        currentCity.mayorUsername.toLowerCase() === username.toLowerCase()
+      ) {
+        throw new BadRequestException(
+          'Вы являетесь мэром своего города и не можете переехать. Сначала сложите полномочия мэра.',
+        );
+      }
+
+      if (
+        user.stateId &&
+        city.stateId &&
+        user.stateId !== city.stateId
+      ) {
+        throw new BadRequestException(
+          'Вы не можете переехать в город другого государства. Заявка на переезд возможна только между городами в пределах одного государства.',
+        );
+      }
+    }
+
+    const anyPending = await this.requestRepo.findOne({
+      where: { username, status: 'pending' },
+    });
+    if (anyPending) {
+      throw new BadRequestException(
+        'У вас уже есть активная заявка на проживание или переезд. Дождитесь её рассмотрения или отмените.',
+      );
+    }
+
     const req = this.requestRepo.create({
       username,
       cityId: city.id,
@@ -323,10 +373,47 @@ export class StatesService {
         user.cityId = city.id;
         user.stateId = city.stateId;
         await this.userRepo.save(user);
+
+        const otherRequests = await this.requestRepo.find({
+          where: { username: req.username, status: 'pending' },
+        });
+        for (const other of otherRequests) {
+          if (other.id !== req.id) {
+            other.status = 'rejected';
+            await this.requestRepo.save(other);
+          }
+        }
       }
     }
 
     return saved;
+  }
+
+  async leaveCity(cityId: string, username?: string): Promise<{ success: boolean; message: string }> {
+    if (!username) {
+      throw new UnauthorizedException('Необходима авторизация');
+    }
+    const user = await this.userRepo.findOne({
+      where: { username_lower: username.toLowerCase() },
+    });
+    if (!user || user.cityId !== cityId) {
+      throw new BadRequestException('Вы не являетесь жителем этого города');
+    }
+    const city = await this.getCityById(cityId);
+    if (
+      city.mayorUsername &&
+      city.mayorUsername.toLowerCase() === username.toLowerCase()
+    ) {
+      throw new BadRequestException(
+        'Мэр не может покинуть город. Сначала сложите или передайте полномочия.',
+      );
+    }
+
+    user.cityId = null;
+    user.stateId = null;
+    await this.userRepo.save(user);
+
+    return { success: true, message: 'Вы успешно покинули город' };
   }
 
   // --- Elections ---
@@ -409,5 +496,110 @@ export class StatesService {
     await this.candidateRepo.save(cand);
 
     return { message: 'Ваш голос учтен!' };
+  }
+
+  // --- Treasury ---
+  async getStateTreasury(stateId: string): Promise<StateTreasuryItemEntity[]> {
+    return this.treasuryRepo.find({
+      where: { stateId },
+      order: { minecraftItemId: 'ASC' },
+    });
+  }
+
+  async updateTreasuryItem(
+    stateId: string,
+    minecraftItemId: string,
+    quantity: number,
+  ): Promise<StateTreasuryItemEntity> {
+    let item = await this.treasuryRepo.findOne({
+      where: { stateId, minecraftItemId },
+    });
+
+    if (!item) {
+      item = this.treasuryRepo.create({
+        stateId,
+        minecraftItemId,
+        quantity,
+      });
+    } else {
+      item.quantity = quantity;
+    }
+
+    if (item.quantity <= 0) {
+      if (item.id) {
+        await this.treasuryRepo.remove(item);
+      }
+      return item;
+    }
+
+    return this.treasuryRepo.save(item);
+  }
+
+  async digitizeTreasury(stateId: string, accountType: string = 'state_reserve'): Promise<{ message: string; items: any[] }> {
+    const response = await this.rconService.executeCommand(`safe digitize ${stateId} ${accountType}`);
+    try {
+      const parsed = JSON.parse(response);
+      if (!parsed.success) {
+        throw new BadRequestException(parsed.reason || 'Не удалось оцифровать сейф');
+      }
+
+      // Обновляем базу данных
+      for (const item of parsed.items) {
+        const qty = Number(item.qty);
+        if (qty > 0) {
+          let existing = await this.treasuryRepo.findOne({
+            where: { stateId, minecraftItemId: item.id },
+          });
+          if (existing) {
+            existing.quantity += qty;
+            await this.treasuryRepo.save(existing);
+          } else {
+            await this.treasuryRepo.save(
+              this.treasuryRepo.create({
+                stateId,
+                minecraftItemId: item.id,
+                quantity: qty,
+              })
+            );
+          }
+        }
+      }
+      return { message: 'Сейф успешно оцифрован', items: parsed.items };
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      throw new BadRequestException('Ошибка при парсинге ответа сервера: ' + response);
+    }
+  }
+
+  async withdrawTreasury(stateId: string, accountType: string, minecraftItemId: string, quantity: number): Promise<{ message: string }> {
+    // Сначала проверяем баланс в БД
+    const item = await this.treasuryRepo.findOne({
+      where: { stateId, minecraftItemId },
+    });
+    
+    if (!item || item.quantity < quantity) {
+      throw new BadRequestException('Недостаточно предметов в казне государства');
+    }
+
+    const response = await this.rconService.executeCommand(`safe withdraw ${stateId} ${accountType} ${minecraftItemId} ${quantity}`);
+    try {
+      const parsed = JSON.parse(response);
+      if (!parsed.success) {
+        throw new BadRequestException(parsed.reason || 'Сейф переполнен или выгружен из памяти сервера (подойдите к нему в игре).');
+      }
+
+      // Списываем баланс только если RCON вернул success
+      item.quantity -= quantity;
+      if (item.quantity <= 0) {
+        await this.treasuryRepo.remove(item);
+      } else {
+        await this.treasuryRepo.save(item);
+      }
+
+      return { message: 'Предметы успешно выведены в сейф' };
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      throw new BadRequestException('Ошибка при парсинге ответа сервера: ' + response);
+    }
   }
 }

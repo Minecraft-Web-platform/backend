@@ -96,4 +96,30 @@ export class MinecraftRconService {
       }
     }
   }
+
+  public async executeCommand(command: string): Promise<string> {
+    let rcon: Rcon | null = null;
+    try {
+      rcon = await Rcon.connect({
+        host: this.host,
+        port: this.port,
+        password: this.password,
+      });
+
+      const response = await Promise.race<string>([
+        rcon.send(command),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('RCON timeout')), 5000)),
+      ]);
+
+      if (typeof response !== 'string') {
+        throw new Error('Invalid RCON response');
+      }
+
+      return response;
+    } finally {
+      if (rcon) {
+        await rcon.end().catch(() => {});
+      }
+    }
+  }
 }

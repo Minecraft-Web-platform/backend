@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } f
 import { CityEntity } from './city.entity';
 import { User } from '../../users/entities/user.entity';
 import { StateDecreeEntity } from './state-decree.entity';
+import { StateTreasuryItemEntity } from './state-treasury-item.entity';
 
 @Entity('states')
 export class StateEntity {
@@ -52,4 +53,7 @@ export class StateEntity {
 
   @OneToMany(() => StateDecreeEntity, (decree) => decree.state, { cascade: true })
   decrees?: StateDecreeEntity[];
+
+  @OneToMany(() => StateTreasuryItemEntity, (item) => item.state, { cascade: true })
+  treasuryItems?: StateTreasuryItemEntity[];
 }

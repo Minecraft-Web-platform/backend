@@ -10,6 +10,8 @@ import { Currency } from '../entities/currency.entity';
 import { StateEntity } from '../../states/entities/state.entity';
 import { Account } from '../entities/account.entity';
 
+import { StateTreasuryItemEntity } from '../../states/entities/state-treasury-item.entity';
+
 @Injectable()
 export class CurrenciesService {
   constructor(
@@ -19,6 +21,8 @@ export class CurrenciesService {
     private readonly stateRepository: Repository<StateEntity>,
     @InjectRepository(Account)
     private readonly accountRepository: Repository<Account>,
+    @InjectRepository(StateTreasuryItemEntity)
+    private readonly treasuryRepo: Repository<StateTreasuryItemEntity>,
   ) {}
 
   public async getAllCurrencies(): Promise<Currency[]> {
@@ -83,12 +87,20 @@ export class CurrenciesService {
       }
     }
 
+    const mainItem = dto.minecraftItemId || 'minecraft:diamond';
+    const kopeckItem = dto.kopeckItemId || 'minecraft:gold_nugget';
+    if (mainItem === kopeckItem) {
+      throw new BadRequestException(
+        'Основная и разменная монета не могут быть одинаковым предметом',
+      );
+    }
+
     const currency = this.currencyRepository.create({
       stateId: dto.stateId || null,
       code: dto.code.toUpperCase(),
       name: dto.name,
-      minecraftItemId: dto.minecraftItemId || 'minecraft:diamond',
-      kopeckItemId: dto.kopeckItemId || 'minecraft:gold_nugget',
+      minecraftItemId: mainItem,
+      kopeckItemId: kopeckItem,
       minecraftEnchantment: dto.minecraftEnchantment || 'unbreaking:3',
       totalIssued: 1000,
       reserves: 1000,
@@ -157,19 +169,67 @@ export class CurrenciesService {
   }
 
   private async recalculateExchangeRate(currency: Currency): Promise<Currency> {
-    let economicPower = 0;
+    let basePower = 0;
+    let taxCoefficient = 1.0;
+
     if (currency.stateId) {
       const state = await this.stateRepository.findOne({
         where: { id: currency.stateId },
-        relations: ['citizens', 'cities'],
+        relations: ['citizens', 'cities', 'cities.citizens'],
       });
       if (state) {
         const citizensCount = state.citizens?.length || 0;
-        const citiesCount = state.cities?.length || 0;
-        economicPower = citizensCount * 10 + citiesCount * 50;
+        const activeCitiesCount =
+          state.cities?.filter((c) => (c.citizens?.length || 0) >= 1).length ||
+          0;
+
+        const taxRate = state.taxRate || 5;
+        if (taxRate <= 10) {
+          taxCoefficient = 1.0;
+        } else if (taxRate <= 25) {
+          taxCoefficient = 0.95;
+        } else {
+          taxCoefficient = 0.85;
+        }
+
+        basePower += citizensCount * 10 + activeCitiesCount * 100;
       }
     }
 
+    if (currency.createdAt) {
+      const ageInDays =
+        (Date.now() - new Date(currency.createdAt).getTime()) /
+        (1000 * 60 * 60 * 24);
+      const ageWeeks = Math.floor(Math.max(0, ageInDays) / 7);
+      basePower += ageWeeks * 50;
+    }
+
+    // Calculate physical reserves from Treasury
+    if (currency.stateId) {
+      const treasuryItems = await this.treasuryRepo.find({
+        where: { stateId: currency.stateId },
+      });
+      const ITEM_VALUES: Record<string, number> = {
+        'minecraft:gold_nugget': 1,
+        'minecraft:gold_ingot': 9,
+        'minecraft:gold_block': 81,
+        'minecraft:diamond': 20,
+        'minecraft:diamond_block': 180,
+        'minecraft:emerald': 12,
+        'minecraft:emerald_block': 108,
+        'minecraft:netherite_scrap': 25,
+        'minecraft:netherite_ingot': 150,
+        'minecraft:netherite_block': 1350,
+      };
+      let physicalReserves = 0;
+      for (const item of treasuryItems) {
+        const val = ITEM_VALUES[item.minecraftItemId] || 0;
+        physicalReserves += val * item.quantity;
+      }
+      currency.reserves = physicalReserves;
+    }
+
+    const economicPower = Number((basePower * taxCoefficient).toFixed(2));
     const totalIssued = Math.max(currency.totalIssued, 1);
     const calculatedRate = (currency.reserves + economicPower) / totalIssued;
     currency.exchangeRate = Number(Math.max(calculatedRate, 0.01).toFixed(4));
