@@ -23,6 +23,8 @@ import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
 import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
 
+import { AccountTreasuryItemEntity } from './entities/account-treasury-item.entity';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -36,6 +38,7 @@ import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
       CityEntity,
       StateTreasuryItemEntity,
       User,
+      AccountTreasuryItemEntity,
     ]),
     OwnJwtModule,
     UsersModule,

@@ -87,8 +87,8 @@ export class CurrenciesService {
       }
     }
 
-    const mainItem = dto.minecraftItemId || 'minecraft:diamond';
-    const kopeckItem = dto.kopeckItemId || 'minecraft:gold_nugget';
+    const mainItem = dto.minecraftItemId || 'createdeco:gold_coin';
+    const kopeckItem = dto.kopeckItemId || 'createdeco:copper_coin';
     if (mainItem === kopeckItem) {
       throw new BadRequestException(
         'Основная и разменная монета не могут быть одинаковым предметом',
@@ -210,8 +210,6 @@ export class CurrenciesService {
         where: { stateId: currency.stateId },
       });
       const ITEM_VALUES: Record<string, number> = {
-        'minecraft:gold_nugget': 1,
-        'minecraft:gold_ingot': 9,
         'minecraft:gold_block': 81,
         'minecraft:diamond': 20,
         'minecraft:diamond_block': 180,

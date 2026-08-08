@@ -23,6 +23,12 @@ export class CityEntity {
   @Column({ name: 'state_id', type: 'uuid', nullable: true })
   stateId: string | null;
 
+  @Column({ default: false })
+  isCapital: boolean;
+
+  @Column({ type: 'simple-array', nullable: true })
+  images: string[];
+
   @ManyToOne(() => StateEntity, (state) => state.cities, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'state_id' })
   state?: StateEntity;

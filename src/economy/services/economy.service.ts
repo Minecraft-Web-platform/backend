@@ -13,7 +13,25 @@ import { Currency } from '../entities/currency.entity';
 import { User } from '../../users/entities/user.entity';
 import { CityEntity } from '../../states/entities/city.entity';
 import { StateEntity } from '../../states/entities/state.entity';
+import { AccountTreasuryItemEntity } from '../entities/account-treasury-item.entity';
+import { StateTreasuryItemEntity } from '../../states/entities/state-treasury-item.entity';
 import { MinecraftRconService } from '../../minecraft-rcon/minecraft-rcon.service';
+
+const ITEM_VALUES: Record<string, number> = {
+  'minecraft:gold_block': 81,
+  'minecraft:diamond': 20,
+  'minecraft:diamond_block': 180,
+  'minecraft:emerald': 12,
+  'minecraft:emerald_block': 108,
+  'minecraft:netherite_scrap': 25,
+  'minecraft:netherite_ingot': 150,
+  'minecraft:netherite_block': 1350,
+};
+
+const GOLD_TIERS = [ { id: 'minecraft:gold_block', val: 81 }, { id: 'minecraft:gold_ingot', val: 9 }, { id: 'minecraft:gold_nugget', val: 1 } ];
+const DIAMOND_TIERS = [ { id: 'minecraft:diamond_block', val: 180 }, { id: 'minecraft:diamond', val: 20 } ];
+const EMERALD_TIERS = [ { id: 'minecraft:emerald_block', val: 108 }, { id: 'minecraft:emerald', val: 12 } ];
+const NETHERITE_TIERS = [ { id: 'minecraft:netherite_block', val: 1350 }, { id: 'minecraft:netherite_ingot', val: 150 }, { id: 'minecraft:netherite_scrap', val: 25 } ];
 
 @Injectable()
 export class EconomyService {
@@ -34,6 +52,10 @@ export class EconomyService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(StateEntity)
     private readonly stateRepository: Repository<StateEntity>,
+    @InjectRepository(StateTreasuryItemEntity)
+    private readonly stateTreasuryItemRepository: Repository<StateTreasuryItemEntity>,
+    @InjectRepository(AccountTreasuryItemEntity)
+    private readonly accountTreasuryItemRepository: Repository<AccountTreasuryItemEntity>,
     private readonly rconService: MinecraftRconService,
   ) { }
 
@@ -94,6 +116,15 @@ export class EconomyService {
         map.set(t.currencyCode, t.ownerUsername);
       }
     }
+    
+    const currencies = await this.currencyRepository.find();
+    for (const c of currencies) {
+       if (!map.has(c.code) && c.stateId) {
+          const state = await this.stateRepository.findOne({ where: { id: c.stateId } });
+          if (state) map.set(c.code, `НАЦИОНАЛЬНЫЙ БАНК ${state.name.toUpperCase()}`);
+       }
+    }
+    
     return map;
   }
 
@@ -102,10 +133,26 @@ export class EconomyService {
     cards: CreditCard[];
   }> {
     const lower = username.toLowerCase();
-    const accounts = await this.accountRepository.find({
+    const userAccounts = await this.accountRepository.find({
       where: { ownerUsername: lower },
       order: { createdAt: 'DESC' },
     });
+    
+    const accounts = [...userAccounts];
+
+    const state = await this.stateRepository.createQueryBuilder('state')
+      .where('LOWER(state.leaderUsername) = :lower', { lower })
+      .getOne();
+    if (state) {
+      const currency = await this.currencyRepository.findOne({ where: { stateId: state.id } });
+      if (currency) {
+        const treasuryAccount = await this.accountRepository.findOne({ where: { type: 'treasury', currencyCode: currency.code } });
+        if (treasuryAccount) {
+          accounts.push(treasuryAccount);
+        }
+      }
+    }
+
     const accountIds = accounts.map((a) => a.id);
     let cards: CreditCard[] = [];
     if (accountIds.length > 0) {
@@ -118,8 +165,7 @@ export class EconomyService {
     }
 
     const bankMap = await this.getBankNamesMap();
-    const defaultBankName =
-      bankMap.values().next().value || 'НАЦИОНАЛЬНЫЙ БАНК';
+    const defaultBankName = 'НАЦИОНАЛЬНЫЙ БАНК';
 
     const enrichedAccounts = accounts.map((acc) => {
       acc.bankName = bankMap.get(acc.currencyCode) || defaultBankName;
@@ -135,6 +181,111 @@ export class EconomyService {
     });
 
     return { accounts: enrichedAccounts, cards: enrichedCards };
+  }
+
+  public async getModAccounts(playerUsername: string): Promise<any[]> {
+    const lower = playerUsername.toLowerCase();
+    const result: any[] = [];
+    
+    const personalAccounts = await this.accountRepository.find({
+      where: { ownerUsername: lower, type: 'personal' },
+      order: { createdAt: 'DESC' },
+    });
+    
+    const companies = await this.companyRepository.createQueryBuilder('company')
+      .where('LOWER(company.ownerUsername) = :lower', { lower })
+      .getMany();
+      
+    const companyAccounts: Account[] = [];
+    if (companies.length > 0) {
+      const accountIds = companies.map(c => c.accountId).filter(id => id);
+      if (accountIds.length > 0) {
+        const accs = await this.accountRepository.createQueryBuilder('account')
+          .where('account.id IN (:...accountIds)', { accountIds })
+          .getMany();
+        companyAccounts.push(...accs);
+      }
+    }
+    
+    const state = await this.stateRepository.createQueryBuilder('state')
+      .where('LOWER(state.leaderUsername) = :lower', { lower })
+      .getOne();
+      
+    const treasuryAccounts: Account[] = [];
+    if (state && state.treasuryAccountNumber) {
+      const acc = await this.accountRepository.findOne({ where: { accountNumber: state.treasuryAccountNumber } });
+      if (acc) treasuryAccounts.push(acc);
+    }
+    
+    const currencies = await this.currencyRepository.find();
+    const bankMap = await this.getBankNamesMap();
+    const defaultBankName = 'НАЦИОНАЛЬНЫЙ БАНК';
+
+    const getAccountName = async (accNum: string) => {
+        const a = await this.accountRepository.findOne({ where: { accountNumber: accNum } });
+        if (!a) return 'Неизвестно';
+        if (a.type === 'personal') return a.ownerUsername;
+        if (a.type === 'company') {
+            const comp = await this.companyRepository.findOne({ where: { accountId: a.id } });
+            return comp ? `Фирма '${comp.name}'` : 'Фирма';
+        }
+        if (a.type === 'treasury') {
+            const st = await this.stateRepository.findOne({ where: { treasuryAccountNumber: a.accountNumber } });
+            return st ? `Банк '${st.name}'` : 'Банк';
+        }
+        return a.ownerUsername;
+    };
+    
+    const formatAccount = async (acc: Account, title: string) => {
+      const currency = currencies.find(c => c.code === acc.currencyCode);
+      const itemId = currency?.minecraftItemId || 'minecraft:paper';
+      
+      const transactions = await this.transferRepository.createQueryBuilder('transfer')
+        .where('transfer.fromAccountNumber = :accNum OR transfer.toAccountNumber = :accNum', { accNum: acc.accountNumber })
+        .orderBy('transfer.createdAt', 'DESC')
+        .take(10)
+        .getMany();
+        
+      const formattedTransactions: any[] = [];
+      for (const t of transactions) {
+         const fromName = await getAccountName(t.fromAccountNumber);
+         const toName = await getAccountName(t.toAccountNumber);
+         formattedTransactions.push({
+            id: t.id,
+            amount: t.amount,
+            isIncoming: t.toAccountNumber === acc.accountNumber,
+            description: t.description || (t.toAccountNumber === acc.accountNumber ? 'Пополнение' : 'Перевод'),
+            fromName,
+            toName,
+            createdAt: t.createdAt
+         });
+      }
+        
+      return {
+        id: acc.id,
+        accountNumber: acc.accountNumber,
+        type: acc.type,
+        title: title,
+        bankName: bankMap.get(acc.currencyCode) || defaultBankName,
+        balance: acc.balance,
+        currencyCode: acc.currencyCode,
+        itemId: itemId,
+        transactions: formattedTransactions
+      };
+    };
+    
+    for (const acc of personalAccounts) {
+      result.push(await formatAccount(acc, 'Личный счет'));
+    }
+    for (const acc of companyAccounts) {
+      const comp = companies.find(c => c.accountId === acc.id);
+      result.push(await formatAccount(acc, `Счет компании ${comp?.name || ''}`));
+    }
+    for (const acc of treasuryAccounts) {
+      result.push(await formatAccount(acc, `Казначейство ${state?.name || ''}`));
+    }
+    
+    return result;
   }
 
   public async createAccount(
@@ -197,6 +348,24 @@ export class EconomyService {
     ).toString();
     const cvv = Math.floor(100 + Math.random() * 900).toString();
     const expiresAt = '12/29';
+    
+    let backgroundImageUrl: string | undefined;
+    if (account.currencyCode) {
+      const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
+      if (currency?.stateId) {
+        const cities = await this.cityRepository.find({ where: { stateId: currency.stateId } });
+        let allImages: string[] = [];
+        for (const city of cities) {
+          if (city.images && city.images.length > 0) {
+            allImages = allImages.concat(city.images);
+          }
+        }
+        if (allImages.length > 0) {
+          const randomIndex = Math.floor(Math.random() * allImages.length);
+          backgroundImageUrl = allImages[randomIndex];
+        }
+      }
+    }
 
     const card = this.cardRepository.create({
       cardNumber,
@@ -204,6 +373,7 @@ export class EconomyService {
       expiresAt,
       accountId: account.id,
       isBlocked: false,
+      backgroundImageUrl,
     });
 
     return this.cardRepository.save(card);
@@ -224,14 +394,34 @@ export class EconomyService {
       .getMany();
 
     const bankMap = await this.getBankNamesMap();
-    const defaultBankName =
-      bankMap.values().next().value || 'НАЦИОНАЛЬНЫЙ БАНК';
+    const defaultBankName = 'НАЦИОНАЛЬНЫЙ БАНК';
+
+    const currencies = await this.currencyRepository.find();
+    
+    const companies = await this.companyRepository.find({
+      where: { ownerUsername: lower },
+    });
 
     return cards.map((card) => {
       const acc =
         card.account || accounts.find((a) => a.id === card.accountId);
       card.bankName =
         (acc && bankMap.get(acc.currencyCode)) || defaultBankName;
+        
+      if (acc) {
+        const currency = currencies.find(c => c.code === acc.currencyCode);
+        if (currency) {
+          (card as any).currencyItemId = currency.minecraftItemId;
+        }
+        
+        if (acc.type === 'company') {
+          const company = companies.find(c => c.accountId === acc.id);
+          if (company) {
+            (card as any).companyName = company.name;
+          }
+        }
+      }
+      
       return card;
     });
   }
@@ -393,15 +583,17 @@ export class EconomyService {
   }
 
   private async resolveAccount(identifier: string): Promise<Account | null> {
+    const cleanIdentifier = identifier.replace(/\D/g, '');
+    
     // 1. По номеру счета (20 цифр)
     const byAccNum = await this.accountRepository.findOne({
-      where: { accountNumber: identifier },
+      where: { accountNumber: cleanIdentifier || identifier },
     });
     if (byAccNum) return byAccNum;
 
     // 2. По номеру карты (16 цифр)
     const card = await this.cardRepository.findOne({
-      where: { cardNumber: identifier },
+      where: { cardNumber: cleanIdentifier || identifier },
     });
     if (card) {
       return this.accountRepository.findOne({
@@ -418,22 +610,242 @@ export class EconomyService {
 
   public async checkTreasuryAccess(playerUsername: string, entityId: string, entityType: string): Promise<boolean> {
     const usernameLower = playerUsername.toLowerCase();
-
-    if (entityType === 'personal') {
-      const user = await this.userRepository.findOne({ where: { username_lower: usernameLower } });
-      return user?.id === Number(entityId);
-    }
-
-    if (entityType === 'company') {
-      const company = await this.companyRepository.findOne({ where: { id: entityId } });
-      return company?.ownerUsername?.toLowerCase() === usernameLower;
-    }
-
-    if (entityType === 'state') {
+    console.log(`[checkTreasuryAccess] player=${usernameLower}, entityId=${entityId}, entityType=${entityType}`);
+    
+    if (entityType === 'gold_reserve') {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(entityId);
+      console.log(`[checkTreasuryAccess] gold_reserve isUuid=${isUuid}`);
+      if (!isUuid) return false;
       const state = await this.stateRepository.findOne({ where: { id: entityId } });
+      if (!state) return false;
+      return state.leaderUsername?.toLowerCase() === usernameLower;
+    }
+
+    const cleanAccountNumber = entityId.replace(/\D/g, '');
+    const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
+    console.log(`[checkTreasuryAccess] account found=${!!account}, type=${account?.type}, owner=${account?.ownerUsername}`);
+    if (!account) return false;
+
+    if (entityType === 'personal' || entityType === 'company') {
+      return account.ownerUsername === usernameLower;
+    }
+
+    if (entityType === 'state' || entityType === 'state_reserve') {
+      if (account.type !== 'treasury') return false;
+      const state = await this.stateRepository.findOne({ where: { treasuryAccountNumber: account.accountNumber } });
+      console.log(`[checkTreasuryAccess] state found=${!!state}, stateLeader=${state?.leaderUsername}`);
       return state?.leaderUsername?.toLowerCase() === usernameLower;
     }
 
     return false;
+  }
+
+  public async processDeposit(playerUsername: string, entityId: string, entityType: string, amount: string, items: { itemId: string; count: number }[]): Promise<boolean> {
+    const hasAccess = await this.checkTreasuryAccess(playerUsername, entityId, entityType);
+    if (!hasAccess) throw new BadRequestException('У вас нет доступа к этому счету.');
+
+    let targetStateId: string | null = null;
+    let targetAccountId: string | null = null;
+
+    if (entityType === 'gold_reserve') {
+      targetStateId = entityId; // For gold_reserve, the 'entityId' is actually the State ID
+    } else if (entityType === 'state' || entityType === 'state_reserve') {
+      const cleanAccountNumber = entityId.replace(/\D/g, '');
+      const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
+      if (!account) throw new BadRequestException('Счет не найден.');
+      const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
+      if (!currency || !currency.stateId) throw new BadRequestException('Государство счета не найдено.');
+      targetStateId = currency.stateId;
+      targetAccountId = account.id;
+    } else {
+      const cleanAccountNumber = entityId.replace(/\D/g, '');
+      const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
+      if (!account) throw new BadRequestException('Счет не найден.');
+      targetAccountId = account.id;
+    }
+
+    if (targetStateId && entityType === 'gold_reserve') {
+      for (const item of items) {
+        let treasuryItem = await this.stateTreasuryItemRepository.findOne({ where: { stateId: targetStateId, minecraftItemId: item.itemId } });
+        if (treasuryItem) {
+          treasuryItem.quantity += item.count;
+        } else {
+          treasuryItem = this.stateTreasuryItemRepository.create({ stateId: targetStateId, minecraftItemId: item.itemId, quantity: item.count });
+        }
+        await this.stateTreasuryItemRepository.save(treasuryItem);
+      }
+      return true;
+    } else if (targetAccountId) {
+      const cleanAccountNumber = entityId.replace(/\D/g, '');
+      const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
+      if (!account) throw new BadRequestException('Счет не найден.');
+      
+      const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
+      if (!currency) throw new BadRequestException('Валюта счета не найдена.');
+      
+      let depositedValue = 0;
+      for (const item of items) {
+        const val = ITEM_VALUES[item.itemId];
+        if (val !== undefined) {
+           depositedValue += val * item.count;
+        } else if (currency) {
+           if (item.itemId === currency.minecraftItemId) depositedValue += 1 * item.count;
+           else if (item.itemId === currency.kopeckItemId) depositedValue += 0.01 * item.count;
+           else throw new BadRequestException(`Предмет ${item.itemId} не является валютой.`);
+        }
+      }
+      
+      if (depositedValue > 0) {
+        account.balance = Number(account.balance) + depositedValue;
+        await this.accountRepository.save(account);
+      } else {
+        throw new BadRequestException('Внесенная сумма должна быть больше 0.');
+      }
+      return true;
+    }
+    
+    throw new BadRequestException('Неизвестный тип сейфа.');
+  }
+
+  public async processWithdraw(playerUsername: string, entityId: string, entityType: string, amount: string): Promise<{ itemId: string; count: number; name?: string; enchantment?: string }[]> {
+    const hasAccess = await this.checkTreasuryAccess(playerUsername, entityId, entityType);
+    if (!hasAccess) throw new BadRequestException('У вас нет доступа к этому счету.');
+
+    let itemsToReturn: { itemId: string; count: number; name?: string; enchantment?: string }[] = [];
+    let targetStateId: string | null = null;
+    let targetAccountId: string | null = null;
+
+    if (entityType === 'gold_reserve') {
+      targetStateId = entityId; // For gold_reserve, entityId is State ID
+    } else if (entityType === 'state' || entityType === 'state_reserve') {
+      const cleanAccountNumber = entityId.replace(/\D/g, '');
+      const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
+      if (!account) throw new BadRequestException('Счет не найден.');
+      const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
+      if (!currency || !currency.stateId) throw new BadRequestException('Государство счета не найдено.');
+      targetStateId = currency.stateId;
+      targetAccountId = account.id;
+    } else {
+      const cleanAccountNumber = entityId.replace(/\D/g, '');
+      const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
+      if (!account) throw new BadRequestException('Счет не найден.');
+      targetAccountId = account.id;
+    }
+
+    if (targetStateId && entityType === 'gold_reserve') {
+      const treasuryItems = await this.stateTreasuryItemRepository.find({ where: { stateId: targetStateId } });
+      for (const tItem of treasuryItems) {
+        itemsToReturn.push({ itemId: tItem.minecraftItemId, count: tItem.quantity });
+      }
+      await this.stateTreasuryItemRepository.remove(treasuryItems);
+      return itemsToReturn;
+    } else if (targetAccountId) {
+      const cleanAccountNumber = entityId.replace(/\D/g, '');
+      const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
+      if (!account) throw new BadRequestException('Счет не найден.');
+      
+      const requestedAmount = parseFloat(amount);
+      if (isNaN(requestedAmount) || requestedAmount < 0.01) throw new BadRequestException('Минимальная сумма операции — 0.01.');
+      if (Number(account.balance) < requestedAmount) throw new BadRequestException('Недостаточно средств на счету.');
+      
+      account.balance = Number(account.balance) - requestedAmount;
+      await this.accountRepository.save(account);
+      
+      const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
+      const kopeck = currency ? currency.kopeckItemId : 'minecraft:gold_nugget';
+      const cName = currency ? currency.name : undefined;
+      const cEnch = currency ? currency.minecraftEnchantment : undefined;
+      
+      let tiers: any[] = [];
+      if (kopeck === 'minecraft:gold_nugget') tiers = GOLD_TIERS;
+      else if (kopeck === 'minecraft:diamond') tiers = DIAMOND_TIERS;
+      else if (kopeck === 'minecraft:emerald') tiers = EMERALD_TIERS;
+      else if (kopeck === 'minecraft:netherite_scrap') tiers = NETHERITE_TIERS;
+      let remaining = requestedAmount;
+      if (currency && currency.minecraftItemId !== kopeck && ITEM_VALUES[currency.kopeckItemId] === undefined) {
+          // It's a custom currency. Give minecraftItemId for the integer part, and kopeck for the decimal part.
+          const mainCount = Math.floor(remaining);
+          const kopeckCount = Math.round((remaining - mainCount) * 100);
+          
+          if (mainCount > 0) {
+              let chunks = Math.floor(mainCount / 64);
+              let remainder = mainCount % 64;
+              for (let i = 0; i < chunks; i++) {
+                 itemsToReturn.push({ itemId: currency.minecraftItemId, count: 64, name: cName, enchantment: cEnch });
+              }
+              if (remainder > 0) {
+                 itemsToReturn.push({ itemId: currency.minecraftItemId, count: remainder, name: cName, enchantment: cEnch });
+              }
+          }
+          
+          if (kopeckCount > 0) {
+              let chunks = Math.floor(kopeckCount / 64);
+              let remainder = kopeckCount % 64;
+              for (let i = 0; i < chunks; i++) {
+                 itemsToReturn.push({ itemId: currency.kopeckItemId, count: 64, name: cName, enchantment: cEnch });
+              }
+              if (remainder > 0) {
+                 itemsToReturn.push({ itemId: currency.kopeckItemId, count: remainder, name: cName, enchantment: cEnch });
+              }
+          }
+      } else {
+          // Legacy tier behavior for standard items
+          for (const tier of tiers) {
+            if (remaining >= tier.val) {
+              const count = Math.floor(remaining / tier.val);
+              let chunks = Math.floor(count / 64);
+              let remainder = count % 64;
+              for (let i = 0; i < chunks; i++) {
+                 itemsToReturn.push({ itemId: tier.id, count: 64, name: cName, enchantment: cEnch });
+              }
+              if (remainder > 0) {
+                 itemsToReturn.push({ itemId: tier.id, count: remainder, name: cName, enchantment: cEnch });
+              }
+              remaining = remaining % tier.val;
+            }
+          }
+          
+          if (remaining > 0) {
+            let count = remaining;
+            let chunks = Math.floor(count / 64);
+            let remainder = count % 64;
+            for (let i = 0; i < chunks; i++) {
+               itemsToReturn.push({ itemId: kopeck, count: 64, name: cName, enchantment: cEnch });
+            }
+            if (remainder > 0) {
+               itemsToReturn.push({ itemId: kopeck, count: remainder, name: cName, enchantment: cEnch });
+            }
+          }
+      }
+      
+      return itemsToReturn;
+    }
+    throw new BadRequestException('Неизвестный тип сейфа.');
+  }
+
+  public async getAccountCurrencyItem(entityId: string, entityType: string): Promise<string> {
+    let targetStateId: string | null = null;
+    let targetAccountId: string | null = null;
+
+    if (entityType === 'gold_reserve') {
+      targetStateId = entityId;
+    } else if (entityType === 'state' || entityType === 'state_reserve' || entityType === 'personal' || entityType === 'company') {
+      const cleanAccountNumber = entityId.replace(/\D/g, '');
+      const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
+      if (account) targetAccountId = account.id;
+    }
+
+    if (targetStateId && entityType === 'gold_reserve') {
+      const currency = await this.currencyRepository.findOne({ where: { stateId: targetStateId } });
+      return currency?.minecraftItemId || 'minecraft:gold_ingot';
+    } else if (targetAccountId) {
+      const account = await this.accountRepository.findOne({ where: { id: targetAccountId } });
+      if (account) {
+        const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
+        return currency?.minecraftItemId || 'minecraft:paper';
+      }
+    }
+    
+    return 'minecraft:paper';
   }
 }

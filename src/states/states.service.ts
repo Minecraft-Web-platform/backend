@@ -189,28 +189,11 @@ export class StatesService {
     creatorUsername?: string,
   ): Promise<CityEntity> {
     const mayor = dto.mayorUsername || creatorUsername;
-    if (mayor) {
-      const mayorUser = await this.userRepo.findOne({
-        where: { username_lower: mayor.toLowerCase() },
-      });
-      if (mayorUser?.cityId) {
-        throw new BadRequestException(
-          'Вы уже состоите в городе. Чтобы основать новый город, сначала покиньте текущий.',
-        );
-      }
-    }
     const city = this.cityRepo.create({
       ...dto,
       mayorUsername: mayor,
     });
-    const savedCity = await this.cityRepo.save(city);
-    if (mayor) {
-      await this.userRepo.update(
-        { username_lower: mayor.toLowerCase() },
-        { cityId: savedCity.id },
-      );
-    }
-    return savedCity;
+    return this.cityRepo.save(city);
   }
 
   async updateCity(
@@ -244,10 +227,80 @@ export class StatesService {
     return this.cityRepo.save(city);
   }
 
-  async deleteCity(id: string): Promise<void> {
+  async deleteCity(id: string, username?: string): Promise<void> {
+    const city = await this.getCityById(id);
+    if (username) {
+      const user = await this.userRepo.findOne({
+        where: { username_lower: username.toLowerCase() },
+      });
+      const isMayor = city.mayorUsername && city.mayorUsername.toLowerCase() === username.toLowerCase();
+      const isPresident = city.state?.leaderUsername && city.state.leaderUsername.toLowerCase() === username.toLowerCase();
+      
+      if (!isMayor && !isPresident && !user?.isAdmin) {
+        throw new ForbiddenException('Только мэр, президент или администратор могут удалить город');
+      }
+    }
+    
     const result = await this.cityRepo.delete(id);
     if (result.affected === 0) {
       throw new NotFoundException('Город не найден');
+    }
+  }
+
+  async setCityCapital(id: string, username: string): Promise<CityEntity> {
+    const city = await this.getCityById(id);
+    if (!city.stateId) {
+      throw new BadRequestException('Город не принадлежит ни одному государству');
+    }
+    
+    const state = await this.getStateById(city.stateId);
+    if (state.leaderUsername?.toLowerCase() !== username.toLowerCase()) {
+      const user = await this.userRepo.findOne({ where: { username_lower: username.toLowerCase() } });
+      if (!user?.isAdmin) {
+        throw new ForbiddenException('Только президент государства может назначать столицу');
+      }
+    }
+
+    // Снимаем столицу с других городов
+    await this.cityRepo.update(
+      { stateId: city.stateId },
+      { isCapital: false }
+    );
+
+    city.isCapital = true;
+    return this.cityRepo.save(city);
+  }
+
+  async addCityImage(id: string, imageUrl: string, username: string): Promise<CityEntity> {
+    const city = await this.getCityById(id);
+    this.checkCityPermission(city, username);
+    
+    if (!city.images) city.images = [];
+    if (!city.images.includes(imageUrl)) {
+      city.images.push(imageUrl);
+    }
+    return this.cityRepo.save(city);
+  }
+
+  async removeCityImage(id: string, imageUrl: string, username: string): Promise<CityEntity> {
+    const city = await this.getCityById(id);
+    this.checkCityPermission(city, username);
+    
+    if (city.images) {
+      city.images = city.images.filter(img => img !== imageUrl);
+    }
+    return this.cityRepo.save(city);
+  }
+
+  private async checkCityPermission(city: CityEntity, username: string) {
+    const user = await this.userRepo.findOne({
+      where: { username_lower: username.toLowerCase() },
+    });
+    const isMayor = city.mayorUsername && city.mayorUsername.toLowerCase() === username.toLowerCase();
+    const isPresident = city.state?.leaderUsername && city.state.leaderUsername.toLowerCase() === username.toLowerCase();
+    
+    if (!isMayor && !isPresident && !user?.isAdmin) {
+      throw new ForbiddenException('Только мэр, президент или администратор могут управлять городом');
     }
   }
 

@@ -55,9 +55,41 @@ export class CitiesController {
   }
 
   @Delete(':id')
-  @UseGuards(AccessTokenGuard, AdminGuard)
-  async deleteCity(@Param('id') id: string) {
-    return this.statesService.deleteCity(id);
+  @UseGuards(AccessTokenGuard)
+  async deleteCity(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.statesService.deleteCity(id, req.user?.username_lower);
+  }
+
+  @Post(':id/capital')
+  @UseGuards(AccessTokenGuard)
+  async setCapital(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.statesService.setCityCapital(id, req.user?.username_lower);
+  }
+
+  @Post(':id/images')
+  @UseGuards(AccessTokenGuard)
+  async addImage(
+    @Param('id') id: string,
+    @Body('imageUrl') imageUrl: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.statesService.addCityImage(id, imageUrl, req.user?.username_lower);
+  }
+
+  @Delete(':id/images')
+  @UseGuards(AccessTokenGuard)
+  async removeImage(
+    @Param('id') id: string,
+    @Body('imageUrl') imageUrl: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.statesService.removeCityImage(id, imageUrl, req.user?.username_lower);
   }
 
   // --- Citizenship Requests ---

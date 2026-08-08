@@ -38,4 +38,7 @@ export class CreditCard {
   createdAt: Date;
 
   bankName?: string;
+  
+  @Column({ nullable: true })
+  backgroundImageUrl?: string;
 }

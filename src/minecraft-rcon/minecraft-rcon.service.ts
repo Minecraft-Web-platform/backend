@@ -3,9 +3,9 @@ import { Rcon } from 'rcon-client';
 
 @Injectable()
 export class MinecraftRconService {
-  private readonly host = '5.83.140.252';
-  private readonly port = 25984;
-  private readonly password = 'amogus228';
+  private readonly host = process.env.RCON_HOST || '5.83.140.252';
+  private readonly port = parseInt(process.env.RCON_PORT || '25984', 10);
+  private readonly password = process.env.RCON_PASSWORD || 'amogus228';
 
   public async getOnlinePlayers() {
     let rcon: Rcon | null = null;

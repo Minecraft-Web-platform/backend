@@ -22,10 +22,10 @@ export class Currency {
   @Column()
   name: string; // название валюты
 
-  @Column({ default: 'minecraft:diamond' })
+  @Column({ default: 'createdeco:gold_coin' })
   minecraftItemId: string; // предмет в Minecraft (получение только через креатив)
 
-  @Column({ name: 'kopeck_item_id', default: 'minecraft:gold_nugget' })
+  @Column({ name: 'kopeck_item_id', default: 'createdeco:copper_coin' })
   kopeckItemId: string; // предмет для копеек (1/100 основной валюты)
 
   @Column({ default: 'unbreaking:3' })
