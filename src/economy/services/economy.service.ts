@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, In } from 'typeorm';
 import { Account, AccountType } from '../entities/account.entity';
 import { CreditCard } from '../entities/credit-card.entity';
 import { Transfer } from '../entities/transfer.entity';
@@ -142,6 +142,7 @@ export class EconomyService {
 
     const state = await this.stateRepository.createQueryBuilder('state')
       .where('LOWER(state.leaderUsername) = :lower', { lower })
+      .orWhere('LOWER(state.treasurerUsername) = :lower', { lower })
       .getOne();
     if (state) {
       const currency = await this.currencyRepository.findOne({ where: { stateId: state.id } });
@@ -288,6 +289,20 @@ export class EconomyService {
     return result;
   }
 
+  private async hasAccessToAccount(account: Account, username: string): Promise<boolean> {
+    const lowerUser = username.toLowerCase();
+    if (account.ownerUsername === lowerUser) return true;
+    
+    if (account.type === 'treasury') {
+      const state = await this.stateRepository.findOne({ where: { treasuryAccountNumber: account.accountNumber } });
+      if (state && (state.leaderUsername?.toLowerCase() === lowerUser || state.treasurerUsername?.toLowerCase() === lowerUser)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
   public async createAccount(
     username: string,
     dto: { type?: AccountType; currencyCode?: string; ownerUsername?: string },
@@ -339,7 +354,7 @@ export class EconomyService {
     if (!account) {
       throw new NotFoundException('Счет не найден');
     }
-    if (account.ownerUsername !== username.toLowerCase()) {
+    if (!(await this.hasAccessToAccount(account, username))) {
       throw new BadRequestException('Вы не являетесь владельцем этого счета');
     }
 
@@ -437,7 +452,7 @@ export class EconomyService {
     if (!card) {
       throw new NotFoundException('Карта не найдена');
     }
-    if (card.account?.ownerUsername !== username.toLowerCase()) {
+    if (card.account && !(await this.hasAccessToAccount(card.account, username))) {
       throw new BadRequestException('Вы не являетесь владельцем этой карты');
     }
     card.isBlocked = !card.isBlocked;
@@ -455,7 +470,7 @@ export class EconomyService {
     if (!card) {
       throw new NotFoundException('Карта не найдена');
     }
-    if (card.account?.ownerUsername !== username.toLowerCase()) {
+    if (card.account && !(await this.hasAccessToAccount(card.account, username))) {
       throw new BadRequestException('Вы не являетесь владельцем этой карты');
     }
     await this.cardRepository.remove(card);
@@ -481,7 +496,7 @@ export class EconomyService {
     if (!senderAccount) {
       throw new NotFoundException('Счет отправителя не найден');
     }
-    if (senderAccount.ownerUsername !== username.toLowerCase()) {
+    if (!(await this.hasAccessToAccount(senderAccount, username))) {
       throw new BadRequestException(
         'Вы можете переводить средства только со своего счета',
       );
@@ -499,51 +514,50 @@ export class EconomyService {
       throw new BadRequestException('Нельзя перевести средства самому себе');
     }
 
-    // Проверим необходимость конвертации валют
-    let targetAmount = dto.amount;
-    let conversionNote = '';
     if (senderAccount.currencyCode !== receiverAccount.currencyCode) {
-      const senderCurr = await this.currencyRepository.findOne({
-        where: { code: senderAccount.currencyCode },
-      });
-      const receiverCurr = await this.currencyRepository.findOne({
-        where: { code: receiverAccount.currencyCode },
-      });
-      const senderRate = senderCurr?.exchangeRate || 1.0;
-      const receiverRate = receiverCurr?.exchangeRate || 1.0;
-
-      targetAmount = Number(
-        ((dto.amount * senderRate) / receiverRate).toFixed(2),
+      throw new BadRequestException(
+        `Перевод отклонен: валюты счетов не совпадают (${senderAccount.currencyCode} и ${receiverAccount.currencyCode}). Прямая конвертация запрещена.`,
       );
-      conversionNote = ` [Конвертация: ${dto.amount} ${senderAccount.currencyCode} ➔ ${targetAmount} ${receiverAccount.currencyCode}]`;
     }
 
     let taxAmount = 0;
-    // Если получатель - компания, проверим юрисдикцию и рассчитаем налог по ставке государства/города
-    if (receiverAccount.type === 'company') {
-      let taxRate = 5.0; // ставка по умолчанию 5%
-      const company = await this.companyRepository.findOne({
-        where: { accountId: receiverAccount.id },
+    let treasuryAccountToReceiveTax: Account | null = null;
+    
+    // Определяем государство-эмитента валюты
+    const currency = await this.currencyRepository.findOne({
+      where: { code: senderAccount.currencyCode },
+    });
+    
+    if (currency && currency.stateId) {
+      const state = await this.stateRepository.findOne({
+        where: { id: currency.stateId },
       });
-      if (company?.stateId) {
-        const state = await this.stateRepository.findOne({
-          where: { id: company.stateId },
-        });
-        if (state && state.taxRate !== undefined && state.taxRate !== null) {
-          taxRate = Number(state.taxRate);
+      
+      if (state && state.treasuryAccountNumber) {
+        let taxRate = 0;
+        
+        const isSenderCompany = senderAccount.type === 'company';
+        const isReceiverCompany = receiverAccount.type === 'company';
+        
+        if (!isSenderCompany && !isReceiverCompany) {
+          // Игрок -> Игрок
+          taxRate = state.playerToPlayerTransferFee || 0;
+        } else {
+          // Игрок -> Компания, Компания -> Игрок, Компания -> Компания
+          taxRate = state.playerToCompanyTransferFee || 0;
         }
-      } else if (company?.cityId) {
-        const city = await this.cityRepository.findOne({
-          where: { id: company.cityId },
-        });
-        if (city && city.taxRate !== undefined && city.taxRate !== null) {
-          taxRate = Number(city.taxRate);
+        
+        taxAmount = Number(((dto.amount * taxRate) / 100).toFixed(2));
+        if (taxAmount > 0) {
+          treasuryAccountToReceiveTax = await this.accountRepository.findOne({ where: { accountNumber: state.treasuryAccountNumber } });
+          if (!treasuryAccountToReceiveTax) {
+             taxAmount = 0;
+          }
         }
       }
-      taxAmount = Number(((targetAmount * taxRate) / 100).toFixed(2));
     }
 
-    const netAmount = Number((targetAmount - taxAmount).toFixed(2));
+    const netAmount = Number((dto.amount - taxAmount).toFixed(2));
 
     senderAccount.balance = Number(
       (senderAccount.balance - dto.amount).toFixed(2),
@@ -552,7 +566,14 @@ export class EconomyService {
       (receiverAccount.balance + netAmount).toFixed(2),
     );
 
-    await this.accountRepository.save([senderAccount, receiverAccount]);
+    const accountsToSave = [senderAccount, receiverAccount];
+    
+    if (taxAmount > 0 && treasuryAccountToReceiveTax) {
+        treasuryAccountToReceiveTax.balance = Number((treasuryAccountToReceiveTax.balance + taxAmount).toFixed(2));
+        accountsToSave.push(treasuryAccountToReceiveTax);
+    }
+
+    await this.accountRepository.save(accountsToSave);
 
     const transfer = this.transferRepository.create({
       fromAccountNumber: senderAccount.accountNumber,
@@ -560,26 +581,96 @@ export class EconomyService {
       amount: dto.amount,
       currencyCode: senderAccount.currencyCode,
       taxAmount,
-      description: (dto.description || 'Перевод средств') + conversionNote,
+      taxAccountNumber: treasuryAccountToReceiveTax ? treasuryAccountToReceiveTax.accountNumber : null,
+      description: dto.description || 'Перевод средств',
     });
 
     return this.transferRepository.save(transfer);
   }
 
-  public async getMyTransfers(username: string): Promise<Transfer[]> {
-    const accounts = await this.accountRepository.find({
-      where: { ownerUsername: username.toLowerCase() },
-    });
-    if (accounts.length === 0) return [];
-    const numbers = accounts.map((a) => a.accountNumber);
+  public async getMyTransfers(username: string): Promise<any[]> {
+    const { accounts: myAccounts } = await this.getMyAccounts(username);
+    if (myAccounts.length === 0) return [];
+    const numbers = myAccounts.map((a: any) => a.accountNumber);
 
-    return this.transferRepository
+    const transfers = await this.transferRepository
       .createQueryBuilder('t')
-      .where('t.fromAccountNumber IN (:...nums) OR t.toAccountNumber IN (:...nums)', {
+      .where('t.fromAccountNumber IN (:...nums) OR t.toAccountNumber IN (:...nums) OR t.taxAccountNumber IN (:...nums)', {
         nums: numbers,
       })
       .orderBy('t.createdAt', 'DESC')
       .getMany();
+
+    // Collect all involved account numbers
+    const allAccountNumbers = [...new Set(transfers.flatMap(t => [t.fromAccountNumber, t.toAccountNumber, t.taxAccountNumber]).filter(n => !!n))];
+    const allAccounts = await this.accountRepository.find({
+      where: { accountNumber: In(allAccountNumbers) },
+    });
+
+    const accountMap = new Map(allAccounts.map(a => [a.accountNumber, a]));
+    
+    const personalAccounts = allAccounts.filter(a => a.type === 'personal');
+    const userNames = [...new Set(personalAccounts.map(a => a.ownerUsername))];
+    const users = await this.userRepository.find({
+      where: { username_lower: In(userNames.map(u => u.toLowerCase())) },
+      relations: ['state'],
+    });
+    const userMap = new Map(users.map(u => [u.username_lower, u]));
+
+    const stateAccounts = allAccounts.filter(a => a.type === 'treasury');
+    const treasuryAccNums = [...new Set(stateAccounts.map(a => a.accountNumber))];
+    const states = treasuryAccNums.length > 0 ? await this.stateRepository.find({
+      where: { treasuryAccountNumber: require('typeorm').In(treasuryAccNums) },
+    }) : [];
+    const stateMap = new Map(states.map(s => [s.treasuryAccountNumber, s]));
+
+    const companyAccounts = allAccounts.filter(a => a.type === 'company');
+    const companyAccountIds = [...new Set(companyAccounts.map(a => a.id))];
+    const companies = companyAccountIds.length > 0 ? await this.companyRepository.find({
+        where: { accountId: In(companyAccountIds) },
+    }) : [];
+    const companyMap = new Map(companies.map(c => [c.accountId, c]));
+
+    const enrichAccount = (accNum: string) => {
+      const acc = accountMap.get(accNum);
+      if (!acc) return { ownerName: accNum, coatOfArms: null };
+      
+      let ownerName = acc.ownerUsername;
+      let coatOfArms: string | null = null;
+      
+      if (acc.type === 'personal') {
+         const user = userMap.get(acc.ownerUsername.toLowerCase());
+         if (user) {
+           ownerName = user.username;
+           coatOfArms = user.state?.coatOfArmsUrl || null;
+         }
+      } else if (acc.type === 'treasury') {
+         const state = stateMap.get(acc.accountNumber);
+         if (state) {
+           ownerName = `Казна: ${state.name}`;
+           coatOfArms = state.coatOfArmsUrl || null;
+         }
+      } else if (acc.type === 'company') {
+         const company = companyMap.get(acc.id);
+         if (company) {
+            ownerName = company.name;
+            coatOfArms = company.logoUrl || null;
+         }
+      }
+      return { ownerName, coatOfArms };
+    };
+
+    return transfers.map(t => {
+      const fromEnriched = enrichAccount(t.fromAccountNumber);
+      const toEnriched = enrichAccount(t.toAccountNumber);
+      return {
+        ...t,
+        fromOwnerName: fromEnriched.ownerName,
+        fromCoatOfArms: fromEnriched.coatOfArms,
+        toOwnerName: toEnriched.ownerName,
+        toCoatOfArms: toEnriched.coatOfArms,
+      };
+    });
   }
 
   private async resolveAccount(identifier: string): Promise<Account | null> {

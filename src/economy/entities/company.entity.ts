@@ -39,6 +39,10 @@ export class Company {
   @Column({ default: false })
   isPublic: boolean; // выведена ли компания на биржу (IPO)
 
+  @Column({ type: 'varchar', nullable: true })
+  @Index()
+  exchangeStateId: string | null; // ID государства, на бирже которого торгуется компания
+
   @Column({ type: 'int', default: 1000 })
   totalShares: number; // всего акций в обращении
 

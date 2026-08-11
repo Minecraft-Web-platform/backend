@@ -31,7 +31,7 @@ export class StockExchangeController {
   async conductIPO(
     @Req() req: AuthenticatedRequest,
     @Param('companyId') companyId: string,
-    @Body() body: { totalShares?: number; initialPrice?: number },
+    @Body() body: { totalShares?: number; initialPrice?: number; exchangeStateId: string },
   ) {
     const username = req.user.username_lower;
     return this.stockExchangeService.conductIPO(username, companyId, body);
@@ -41,13 +41,15 @@ export class StockExchangeController {
   async buyShares(
     @Req() req: AuthenticatedRequest,
     @Param('companyId') companyId: string,
-    @Body() body: { count: number },
+    @Body() body: { count: number; buyerType?: 'player' | 'state' | 'company'; buyerId?: string },
   ) {
     const username = req.user.username_lower;
     return this.stockExchangeService.buyShares(
       username,
       companyId,
       body.count,
+      body.buyerType,
+      body.buyerId,
     );
   }
 
@@ -55,13 +57,15 @@ export class StockExchangeController {
   async sellShares(
     @Req() req: AuthenticatedRequest,
     @Param('companyId') companyId: string,
-    @Body() body: { count: number },
+    @Body() body: { count: number; sellerType?: 'player' | 'state' | 'company'; sellerId?: string },
   ) {
     const username = req.user.username_lower;
     return this.stockExchangeService.sellShares(
       username,
       companyId,
       body.count,
+      body.sellerType,
+      body.sellerId,
     );
   }
 
@@ -76,6 +80,25 @@ export class StockExchangeController {
       username,
       companyId,
       body.totalAmount,
+    );
+  }
+
+  @Get(':companyId/history')
+  async getCompanySharePriceHistory(@Param('companyId') companyId: string) {
+    return this.stockExchangeService.getCompanySharePriceHistory(companyId);
+  }
+
+  @Post(':companyId/price')
+  async changeCompanySharePrice(
+    @Req() req: AuthenticatedRequest,
+    @Param('companyId') companyId: string,
+    @Body() body: { newPrice: number },
+  ) {
+    const username = req.user.username_lower;
+    return this.stockExchangeService.changeCompanySharePrice(
+      username,
+      companyId,
+      body.newPrice,
     );
   }
 }

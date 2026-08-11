@@ -42,8 +42,6 @@ export class CityEntity {
   @Column({ type: 'varchar', nullable: true })
   treasuryAccountNumber?: string;
 
-  @Column({ type: 'float', default: 3.0 })
-  taxRate: number;
 
   @OneToMany(() => CitizenshipRequestEntity, (req) => req.city, { cascade: true })
   citizenshipRequests?: CitizenshipRequestEntity[];

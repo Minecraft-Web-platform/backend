@@ -13,6 +13,8 @@ import { StateTreasuryItemEntity } from './entities/state-treasury-item.entity';
 import { User } from '../users/entities/user.entity';
 import { Account } from '../economy/entities/account.entity';
 import { MinecraftRconService } from '../minecraft-rcon/minecraft-rcon.service';
+import { EventsService } from '../events/events.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   CreateCityDto,
   CreateCitizenshipRequestDto,
@@ -53,6 +55,7 @@ export class StatesService {
     @InjectRepository(StateTreasuryItemEntity)
     private readonly treasuryRepo: Repository<StateTreasuryItemEntity>,
     private readonly rconService: MinecraftRconService,
+    private readonly eventsService: EventsService,
   ) {}
 
   // --- States ---
@@ -102,15 +105,29 @@ export class StatesService {
       const isLeader =
         state.leaderUsername &&
         state.leaderUsername.toLowerCase() === username.toLowerCase();
-      if (!isLeader && !user?.isAdmin) {
+      const isTreasurer =
+        state.treasurerUsername &&
+        state.treasurerUsername.toLowerCase() === username.toLowerCase();
+
+      if (!isLeader && !isTreasurer && !user?.isAdmin) {
         throw new ForbiddenException(
-          'Только президент государства или администратор могут вносить изменения в государство',
+          'Только президент, казначей или администратор могут вносить изменения в государство',
         );
       }
     }
-    if (dto.taxRate !== undefined) {
-      if (dto.taxRate < 0 || dto.taxRate > 100) {
+    if (dto.playerToPlayerTransferFee !== undefined) {
+      if (dto.playerToPlayerTransferFee < 0 || dto.playerToPlayerTransferFee > 100) {
         throw new BadRequestException('Ставка налога должна быть от 0 до 100%');
+      }
+    }
+    if (dto.playerToCompanyTransferFee !== undefined) {
+      if (dto.playerToCompanyTransferFee < 0 || dto.playerToCompanyTransferFee > 100) {
+        throw new BadRequestException('Ставка налога должна быть от 0 до 100%');
+      }
+    }
+    if (dto.exchangeTradingFee !== undefined) {
+      if (dto.exchangeTradingFee < 0 || dto.exchangeTradingFee > 100) {
+        throw new BadRequestException('Комиссия биржи должна быть от 0 до 100%');
       }
     }
     Object.assign(state, dto);
@@ -161,6 +178,69 @@ export class StatesService {
     if (result.affected === 0) {
       throw new NotFoundException('Государство не найдено');
     }
+  }
+
+  async resignPresident(stateId: string, username: string): Promise<{ success: boolean; message: string }> {
+    const state = await this.getStateById(stateId);
+    if (!state.leaderUsername || state.leaderUsername.toLowerCase() !== username.toLowerCase()) {
+      throw new BadRequestException('Вы не являетесь лидером этого государства');
+    }
+
+    state.leaderUsername = '';
+    await this.stateRepo.save(state);
+
+    await this.eventsService.createEvent({
+      title: 'Отставка Президента',
+      description: `Игрок ${username} сложил полномочия президента государства ${state.name}. Объявлены новые выборы!`,
+      stateId: state.id,
+      type: 'resignation',
+    });
+
+    await this.createElection({
+      targetType: 'state',
+      targetId: state.id,
+      startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      endsAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+
+    return { success: true, message: 'Вы успешно сложили полномочия лидера государства и запустили новые выборы' };
+  }
+
+  async assignRoles(
+    id: string,
+    dto: { treasurerUsername?: string; voivodeUsername?: string },
+    username: string,
+  ): Promise<StateEntity> {
+    const state = await this.getStateById(id);
+    const user = await this.userRepo.findOne({
+      where: { username_lower: username.toLowerCase() },
+    });
+    
+    if (
+      (!state.leaderUsername || state.leaderUsername.toLowerCase() !== username.toLowerCase()) &&
+      !user?.isAdmin
+    ) {
+      throw new ForbiddenException('Только президент или администратор могут назначать роли');
+    }
+
+    if (dto.treasurerUsername !== undefined) {
+      state.treasurerUsername = dto.treasurerUsername || null;
+    }
+    if (dto.voivodeUsername !== undefined) {
+      state.voivodeUsername = dto.voivodeUsername || null;
+    }
+
+    if (state.treasurerUsername && state.treasurerUsername === state.voivodeUsername) {
+      throw new BadRequestException('Один гражданин может занимать только одну должность');
+    }
+    if (state.treasurerUsername && state.treasurerUsername === state.leaderUsername) {
+      throw new BadRequestException('Президент не может быть казначеем');
+    }
+    if (state.voivodeUsername && state.voivodeUsername === state.leaderUsername) {
+      throw new BadRequestException('Президент не может быть воеводой');
+    }
+
+    return this.stateRepo.save(state);
   }
 
   // --- Cities ---
@@ -218,11 +298,7 @@ export class StatesService {
         );
       }
     }
-    if (dto.taxRate !== undefined) {
-      if (dto.taxRate < 0 || dto.taxRate > 100) {
-        throw new BadRequestException('Ставка налога должна быть от 0 до 100%');
-      }
-    }
+
     Object.assign(city, dto);
     return this.cityRepo.save(city);
   }
@@ -411,11 +487,27 @@ export class StatesService {
     return this.requestRepo.save(req);
   }
 
-  async reviewCitizenshipRequest(requestId: string, dto: ReviewCitizenshipRequestDto): Promise<CitizenshipRequestEntity> {
+  async reviewCitizenshipRequest(requestId: string, dto: ReviewCitizenshipRequestDto, reviewerUsername: string): Promise<CitizenshipRequestEntity> {
     const req = await this.requestRepo.findOne({ where: { id: requestId } });
     if (!req) {
       throw new NotFoundException('Заявка не найдена');
     }
+
+    const city = await this.getCityById(req.cityId);
+    
+    // Check permissions
+    const reviewerUser = await this.userRepo.findOne({
+      where: { username_lower: reviewerUsername.toLowerCase() },
+    });
+    
+    const isAdmin = reviewerUser?.isAdmin || reviewerUser?.role === 'admin';
+    const isMayor = city.mayorUsername?.toLowerCase() === reviewerUsername.toLowerCase();
+    const isPresident = city.state?.leaderUsername?.toLowerCase() === reviewerUsername.toLowerCase();
+
+    if (!isAdmin && !isMayor && !isPresident) {
+      throw new ForbiddenException('У вас нет прав на рассмотрение этой заявки');
+    }
+
     req.status = dto.status;
     const saved = await this.requestRepo.save(req);
 
@@ -457,9 +549,7 @@ export class StatesService {
       city.mayorUsername &&
       city.mayorUsername.toLowerCase() === username.toLowerCase()
     ) {
-      throw new BadRequestException(
-        'Мэр не может покинуть город. Сначала сложите или передайте полномочия.',
-      );
+      await this.resignMayor(cityId, username);
     }
 
     user.cityId = null;
@@ -467,6 +557,32 @@ export class StatesService {
     await this.userRepo.save(user);
 
     return { success: true, message: 'Вы успешно покинули город' };
+  }
+
+  async resignMayor(cityId: string, username: string): Promise<{ success: boolean; message: string }> {
+    const city = await this.getCityById(cityId);
+    if (!city.mayorUsername || city.mayorUsername.toLowerCase() !== username.toLowerCase()) {
+      throw new BadRequestException('Вы не являетесь мэром этого города');
+    }
+
+    city.mayorUsername = '';
+    await this.cityRepo.save(city);
+
+    await this.eventsService.createEvent({
+      title: 'Отставка Мэра',
+      description: `Игрок ${username} сложил полномочия мэра города ${city.name}. Объявлены новые выборы!`,
+      cityId: city.id,
+      type: 'resignation',
+    });
+
+    await this.createElection({
+      targetType: 'city',
+      targetId: city.id,
+      startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      endsAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+
+    return { success: true, message: 'Вы успешно сложили полномочия мэра и запустили новые выборы' };
   }
 
   // --- Elections ---
@@ -500,16 +616,48 @@ export class StatesService {
       startsAt: new Date(dto.startsAt),
       endsAt: new Date(dto.endsAt),
     });
-    return this.electionRepo.save(el);
+    const saved = await this.electionRepo.save(el);
+
+    // Notify about new election in calendar
+    const targetName = dto.targetType === 'state' ? 'государстве' : 'городе';
+    await this.eventsService.createEvent({
+      title: `Выборы в ${targetName}`,
+      description: `Начался этап регистрации кандидатов. Выборы завершатся ${new Date(dto.endsAt).toLocaleDateString('ru-RU')}.`,
+      type: 'election',
+      stateId: dto.targetType === 'state' ? dto.targetId : undefined,
+      cityId: dto.targetType === 'city' ? dto.targetId : undefined,
+    });
+
+    return saved;
   }
 
   async nominateCandidate(electionId: string, username: string, dto: NominateCandidateDto): Promise<ElectionCandidateEntity> {
-    await this.getElectionById(electionId);
+    const el = await this.getElectionById(electionId);
     const existing = await this.candidateRepo.findOne({
       where: { electionId, username },
     });
     if (existing) {
       throw new BadRequestException('Вы уже выдвинули свою кандидатуру на эти выборы');
+    }
+
+    const candidate = await this.userRepo.findOne({ where: { username_lower: username.toLowerCase() } });
+    if (!candidate) {
+      throw new NotFoundException('Игрок не найден');
+    }
+
+    // Проверяем гражданство
+    if (el.targetType === 'state') {
+      if (!candidate.cityId) {
+        throw new ForbiddenException('Вы не состоите ни в одном городе этого государства');
+      }
+      const candidateCity = await this.cityRepo.findOne({ where: { id: candidate.cityId } });
+      if (!candidateCity || candidateCity.stateId !== el.targetId) {
+        throw new ForbiddenException('Вы не являетесь гражданином этого государства');
+      }
+    } else if (el.targetType === 'city') {
+      if (candidate.cityId !== el.targetId) {
+        throw new ForbiddenException('Вы не являетесь жителем этого города');
+      }
     }
     const cand = this.candidateRepo.create({
       electionId,
@@ -538,6 +686,26 @@ export class StatesService {
       throw new NotFoundException('Кандидат не найден');
     }
 
+    const voter = await this.userRepo.findOne({ where: { username_lower: voterUsername.toLowerCase() } });
+    if (!voter) {
+      throw new NotFoundException('Игрок не найден');
+    }
+
+    // Проверяем гражданство
+    if (el.targetType === 'state') {
+      if (!voter.cityId) {
+        throw new ForbiddenException('Вы не состоите ни в одном городе этого государства');
+      }
+      const voterCity = await this.cityRepo.findOne({ where: { id: voter.cityId } });
+      if (!voterCity || voterCity.stateId !== el.targetId) {
+        throw new ForbiddenException('Вы не являетесь гражданином этого государства');
+      }
+    } else if (el.targetType === 'city') {
+      if (voter.cityId !== el.targetId) {
+        throw new ForbiddenException('Вы не являетесь жителем этого города');
+      }
+    }
+
     const vote = this.voteRepo.create({
       electionId,
       voterUsername,
@@ -549,6 +717,110 @@ export class StatesService {
     await this.candidateRepo.save(cand);
 
     return { message: 'Ваш голос учтен!' };
+  }
+
+  async concludeElection(electionId: string): Promise<{ message: string; winner?: string }> {
+    const el = await this.electionRepo.findOne({
+      where: { id: electionId },
+      relations: ['candidates'],
+    });
+    if (!el) {
+      throw new NotFoundException('Выборы не найдены');
+    }
+    if (el.status === 'completed') {
+      throw new BadRequestException('Выборы уже завершены');
+    }
+
+    let winnerUsername = '';
+    let maxVotes = -1;
+
+    if (el.candidates && el.candidates.length > 0) {
+      for (const cand of el.candidates) {
+        if ((cand.votesCount || 0) > maxVotes) {
+          maxVotes = cand.votesCount || 0;
+          winnerUsername = cand.username;
+        }
+      }
+    }
+
+    el.status = 'completed';
+    await this.electionRepo.save(el);
+
+    if (winnerUsername) {
+      if (el.targetType === 'city') {
+        const city = await this.getCityById(el.targetId);
+        city.mayorUsername = winnerUsername;
+        await this.cityRepo.save(city);
+
+        await this.eventsService.createEvent({
+          title: 'Итоги выборов Мэра',
+          description: `Победителем выборов в городе ${city.name} стал ${winnerUsername} с результатом ${maxVotes} голосов.`,
+          cityId: city.id,
+          type: 'election',
+        });
+      } else if (el.targetType === 'state') {
+        const state = await this.getStateById(el.targetId);
+        state.leaderUsername = winnerUsername;
+        await this.stateRepo.save(state);
+
+        await this.eventsService.createEvent({
+          title: 'Итоги выборов Президента',
+          description: `Президентом государства ${state.name} избран ${winnerUsername} (голосов: ${maxVotes}).`,
+          stateId: state.id,
+          type: 'election',
+        });
+      }
+    } else {
+      // No candidates or votes
+      if (el.targetType === 'city') {
+        await this.eventsService.createEvent({
+          title: 'Выборы Мэра несостоялись',
+          description: 'На выборах не оказалось ни одного кандидата с голосами.',
+          cityId: el.targetId,
+          type: 'election',
+        });
+      } else {
+        await this.eventsService.createEvent({
+          title: 'Выборы Президента несостоялись',
+          description: 'На выборах не оказалось ни одного кандидата с голосами.',
+          stateId: el.targetId,
+          type: 'election',
+        });
+      }
+    }
+
+    return { message: 'Выборы успешно завершены', winner: winnerUsername };
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async handleElectionPhases() {
+    const now = new Date();
+    const toVotingElections = await this.electionRepo.createQueryBuilder('election')
+      .where('election.status = :status', { status: 'nomination' })
+      .andWhere('election.startsAt <= :now', { now })
+      .getMany();
+
+    for (const el of toVotingElections) {
+      el.status = 'voting';
+      await this.electionRepo.save(el);
+    }
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async handleEndedElections() {
+    const now = new Date();
+    const endedElections = await this.electionRepo.createQueryBuilder('election')
+      .where('election.status != :status', { status: 'completed' })
+      .andWhere('election.endsAt <= :now', { now })
+      .getMany();
+
+    for (const el of endedElections) {
+      try {
+        await this.concludeElection(el.id);
+      } catch (err) {
+        console.error(`Ошибка при завершении выборов ${el.id}:`, err);
+      }
+    }
   }
 
   // --- Treasury ---

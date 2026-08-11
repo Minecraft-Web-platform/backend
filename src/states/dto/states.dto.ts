@@ -12,7 +12,10 @@ export class CreateStateDto {
   citizenshipName?: string;
   leaderUsername?: string;
   capitalCityId?: string;
-  taxRate?: number;
+  playerToPlayerTransferFee?: number;
+  playerToCompanyTransferFee?: number;
+  ipoFee?: number;
+  exchangeTradingFee?: number;
   treasuryAccountNumber?: string;
 }
 
@@ -26,7 +29,10 @@ export class UpdateStateDto {
   citizenshipName?: string;
   leaderUsername?: string;
   capitalCityId?: string;
-  taxRate?: number;
+  playerToPlayerTransferFee?: number;
+  playerToCompanyTransferFee?: number;
+  ipoFee?: number;
+  exchangeTradingFee?: number;
   treasuryAccountNumber?: string;
 }
 
@@ -36,7 +42,7 @@ export class CreateCityDto {
   flagUrl?: string;
   mayorUsername?: string;
   stateId?: string;
-  taxRate?: number;
+
   treasuryAccountNumber?: string;
 }
 
@@ -46,7 +52,7 @@ export class UpdateCityDto {
   flagUrl?: string;
   mayorUsername?: string;
   stateId?: string;
-  taxRate?: number;
+
   treasuryAccountNumber?: string;
 }
 

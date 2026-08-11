@@ -29,6 +29,10 @@ export class Transfer {
   taxAmount: number; // удержанный налог в казну города/государства
 
   @Column({ type: 'varchar', nullable: true })
+  @Index()
+  taxAccountNumber: string | null; // счет казны, на который ушел налог
+
+  @Column({ type: 'varchar', nullable: true })
   description: string;
 
   @CreateDateColumn()

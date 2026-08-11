@@ -33,6 +33,12 @@ export class StateEntity {
   @Column({ name: 'leader_username', type: 'varchar', length: 255, nullable: true })
   leaderUsername: string | null;
 
+  @Column({ name: 'treasurer_username', type: 'varchar', length: 255, nullable: true })
+  treasurerUsername: string | null;
+
+  @Column({ name: 'voivode_username', type: 'varchar', length: 255, nullable: true })
+  voivodeUsername: string | null;
+
   @Column({ name: 'capital_city_id', type: 'uuid', nullable: true })
   capitalCityId: string | null;
 
@@ -48,8 +54,17 @@ export class StateEntity {
   @Column({ type: 'varchar', nullable: true })
   treasuryAccountNumber?: string;
 
+  @Column({ type: 'float', default: 0.0 })
+  playerToPlayerTransferFee: number; // Налог на перевод игрок-игрок
+
   @Column({ type: 'float', default: 5.0 })
-  taxRate: number;
+  playerToCompanyTransferFee: number; // Налог на перевод игрок-фирма, фирма-игрок
+
+  @Column({ type: 'float', default: 1000.0 })
+  ipoFee: number; // Пошлина за выход на IPO
+
+  @Column({ type: 'float', default: 2.0 })
+  exchangeTradingFee: number; // Комиссия с каждой сделки на бирже (%)
 
   @OneToMany(() => StateDecreeEntity, (decree) => decree.state, { cascade: true })
   decrees?: StateDecreeEntity[];

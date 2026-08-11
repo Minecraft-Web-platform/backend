@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { StatesService } from './states.service';
 import {
@@ -55,6 +56,28 @@ export class StatesController {
   @UseGuards(AccessTokenGuard, AdminGuard)
   async deleteState(@Param('id') id: string) {
     return this.statesService.deleteState(id);
+  }
+
+  @Post(':id/resign')
+  @UseGuards(AccessTokenGuard)
+  async resignPresident(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    if (!req.user?.username_lower) {
+      throw new UnauthorizedException();
+    }
+    return this.statesService.resignPresident(id, req.user.username_lower);
+  }
+
+  @Post(':id/roles')
+  @UseGuards(AccessTokenGuard)
+  async assignRoles(
+    @Param('id') id: string,
+    @Body() dto: { treasurerUsername?: string; voivodeUsername?: string },
+    @Req() req: AuthenticatedRequest,
+  ) {
+    if (!req.user?.username_lower) {
+      throw new UnauthorizedException();
+    }
+    return this.statesService.assignRoles(id, dto, req.user.username_lower);
   }
 
   // --- Decrees ---

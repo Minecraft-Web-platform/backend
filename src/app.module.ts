@@ -10,6 +10,8 @@ import { TicketModule } from './tickets/tickets.module';
 import { NewsModule } from './news/news.module';
 import { MinecraftRconModule } from './minecraft-rcon/minecraft-rcon.module';
 import { StatesModule } from './states/states.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { EventsModule } from './events/events.module';
 
 import { EconomyModule } from './economy/economy.module';
 
@@ -19,6 +21,7 @@ import { EconomyModule } from './economy/economy.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ScheduleModule.forRoot(),
     UsersModule,
     DatabaseModule,
     OwnJwtModule,
@@ -30,6 +33,7 @@ import { EconomyModule } from './economy/economy.module';
     MinecraftRconModule,
     StatesModule,
     EconomyModule,
+    EventsModule,
   ],
 })
 export class AppModule {}

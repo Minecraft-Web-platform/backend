@@ -102,8 +102,8 @@ export class CurrenciesService {
       minecraftItemId: mainItem,
       kopeckItemId: kopeckItem,
       minecraftEnchantment: dto.minecraftEnchantment || 'unbreaking:3',
-      totalIssued: 1000,
-      reserves: 1000,
+      totalIssued: 0,
+      reserves: 0,
       exchangeRate: 1.0,
       rateChange24h: 0.0,
     });
@@ -156,8 +156,22 @@ export class CurrenciesService {
     currency.totalIssued = Number((currency.totalIssued + amount).toFixed(2));
     await this.currencyRepository.save(currency);
 
+    if (currency.stateId) {
+      const state = await this.stateRepository.findOne({
+        where: { id: currency.stateId },
+      });
+      if (state && state.treasuryAccountNumber) {
+        const treasuryAccount = await this.accountRepository.findOne({
+          where: { accountNumber: state.treasuryAccountNumber },
+        });
+        if (treasuryAccount) {
+          treasuryAccount.balance = Number((treasuryAccount.balance + amount).toFixed(2));
+          await this.accountRepository.save(treasuryAccount);
+        }
+      }
+    }
+
     const updated = await this.recalculateExchangeRate(currency);
-    // Рассчитаем процентное изменение после эмиссии
     if (oldRate > 0) {
       updated.rateChange24h = Number(
         (((updated.exchangeRate - oldRate) / oldRate) * 100).toFixed(2),
@@ -183,7 +197,7 @@ export class CurrenciesService {
           state.cities?.filter((c) => (c.citizens?.length || 0) >= 1).length ||
           0;
 
-        const taxRate = state.taxRate || 5;
+        const taxRate = state.playerToCompanyTransferFee || 5;
         if (taxRate <= 10) {
           taxCoefficient = 1.0;
         } else if (taxRate <= 25) {

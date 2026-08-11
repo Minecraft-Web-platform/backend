@@ -8,6 +8,7 @@ import {
   Put,
   Query,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { StatesService } from './states.service';
@@ -61,6 +62,15 @@ export class CitiesController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.statesService.deleteCity(id, req.user?.username_lower);
+  }
+
+  @Post(':id/resign')
+  @UseGuards(AccessTokenGuard)
+  async resignMayor(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    if (!req.user?.username_lower) {
+      throw new UnauthorizedException();
+    }
+    return this.statesService.resignMayor(id, req.user.username_lower);
   }
 
   @Post(':id/capital')
@@ -118,8 +128,12 @@ export class CitiesController {
     @Param('id') _cityId: string,
     @Param('requestId') requestId: string,
     @Body() dto: ReviewCitizenshipRequestDto,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.statesService.reviewCitizenshipRequest(requestId, dto);
+    if (!req.user?.username_lower) {
+      throw new UnauthorizedException();
+    }
+    return this.statesService.reviewCitizenshipRequest(requestId, dto, req.user.username_lower);
   }
 
   @Post(':id/leave')

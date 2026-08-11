@@ -18,6 +18,7 @@ import { Account } from '../economy/entities/account.entity';
 import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
 import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
+import { EventsModule } from '../events/events.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
     OwnJwtModule,
     UsersModule,
     MinecraftRconModule,
+    EventsModule,
   ],
   providers: [StatesService],
   controllers: [StatesController, CitiesController, ElectionsController],

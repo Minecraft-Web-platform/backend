@@ -15,9 +15,13 @@ export class CompanyShare {
   @Index()
   companyId: string;
 
+  @Column({ type: 'varchar', length: 20, default: 'player' })
+  @Index()
+  ownerType: 'player' | 'state' | 'company';
+
   @Column()
   @Index()
-  ownerUsername: string; // username_lower
+  ownerId: string; // username_lower | state_id | company_id
 
   @Column({ type: 'int', default: 0 })
   sharesCount: number;

@@ -6,6 +6,8 @@ import { CreditCard } from './entities/credit-card.entity';
 import { Transfer } from './entities/transfer.entity';
 import { Company } from './entities/company.entity';
 import { CompanyShare } from './entities/company-share.entity';
+import { CompanySharePriceHistory } from './entities/company-share-price-history.entity';
+import { WithdrawnShare } from './entities/withdrawn-share.entity';
 import { StateEntity } from '../states/entities/state.entity';
 import { CityEntity } from '../states/entities/city.entity';
 import { StateTreasuryItemEntity } from '../states/entities/state-treasury-item.entity';
@@ -19,9 +21,11 @@ import { CurrenciesController } from './controllers/currencies.controller';
 import { CompaniesController } from './controllers/companies.controller';
 import { StockExchangeController } from './controllers/stock-exchange.controller';
 import { TreasuryModController } from './controllers/treasury-mod.controller';
+import { StockModController } from './controllers/stock-mod.controller';
 import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
 import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
+import { StatesModule } from '../states/states.module';
 
 import { AccountTreasuryItemEntity } from './entities/account-treasury-item.entity';
 
@@ -34,15 +38,18 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
       Transfer,
       Company,
       CompanyShare,
+      CompanySharePriceHistory,
       StateEntity,
       CityEntity,
       StateTreasuryItemEntity,
       User,
       AccountTreasuryItemEntity,
+      WithdrawnShare,
     ]),
     OwnJwtModule,
     UsersModule,
     MinecraftRconModule,
+    StatesModule,
   ],
   providers: [
     EconomyService,
@@ -56,6 +63,7 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
     CompaniesController,
     StockExchangeController,
     TreasuryModController,
+    StockModController,
   ],
   exports: [
     EconomyService,
