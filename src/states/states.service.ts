@@ -268,6 +268,15 @@ export class StatesService {
     dto: CreateCityDto,
     creatorUsername?: string,
   ): Promise<CityEntity> {
+    const existing = await this.cityRepo
+      .createQueryBuilder('city')
+      .where('LOWER(city.name) = LOWER(:name)', { name: dto.name })
+      .getOne();
+
+    if (existing) {
+      throw new BadRequestException('Город с таким названием уже существует');
+    }
+
     const mayor = dto.mayorUsername || creatorUsername;
     const city = this.cityRepo.create({
       ...dto,
