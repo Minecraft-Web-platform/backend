@@ -9,6 +9,7 @@ import { CompanyShare } from './entities/company-share.entity';
 import { CompanySharePriceHistory } from './entities/company-share-price-history.entity';
 import { WithdrawnShare } from './entities/withdrawn-share.entity';
 import { Property } from './entities/property.entity';
+import { IpoRequest } from './entities/ipo-request.entity';
 import { StateEntity } from '../states/entities/state.entity';
 import { CityEntity } from '../states/entities/city.entity';
 import { StateTreasuryItemEntity } from '../states/entities/state-treasury-item.entity';
@@ -49,6 +50,7 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
       AccountTreasuryItemEntity,
       WithdrawnShare,
       Property,
+      IpoRequest,
     ]),
     OwnJwtModule,
     UsersModule,

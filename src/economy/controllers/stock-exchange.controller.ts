@@ -37,6 +37,23 @@ export class StockExchangeController {
     return this.stockExchangeService.conductIPO(username, companyId, body);
   }
 
+  @Get('ipo-requests/state/:stateId')
+  async getIpoRequests(
+    @Req() req: AuthenticatedRequest,
+    @Param('stateId') stateId: string,
+  ) {
+    return this.stockExchangeService.getIpoRequests(stateId, req.user.username_lower);
+  }
+
+  @Post('ipo-requests/:requestId/review')
+  async reviewIpoRequest(
+    @Req() req: AuthenticatedRequest,
+    @Param('requestId') requestId: string,
+    @Body() body: { action: 'approved' | 'rejected' },
+  ) {
+    return this.stockExchangeService.reviewIpoRequest(requestId, body.action, req.user.username_lower);
+  }
+
   @Post(':companyId/buy')
   async buyShares(
     @Req() req: AuthenticatedRequest,

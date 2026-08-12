@@ -14,6 +14,7 @@ import { EconomyService } from './economy.service';
 
 import { StateEntity } from '../../states/entities/state.entity';
 import { WithdrawnShare } from '../entities/withdrawn-share.entity';
+import { IpoRequest } from '../entities/ipo-request.entity';
 
 @Injectable()
 export class StockExchangeService {
@@ -30,6 +31,8 @@ export class StockExchangeService {
     private readonly sharePriceHistoryRepository: Repository<CompanySharePriceHistory>,
     @InjectRepository(WithdrawnShare)
     private readonly withdrawnShareRepository: Repository<WithdrawnShare>,
+    @InjectRepository(IpoRequest)
+    private readonly ipoRequestRepository: Repository<IpoRequest>,
     private readonly economyService: EconomyService,
   ) {}
 
@@ -94,26 +97,99 @@ export class StockExchangeService {
       throw new NotFoundException('Коммерческий счет компании не найден');
     }
 
-    // Оплата пошлины за листинг
+    const existingRequest = await this.ipoRequestRepository.findOne({
+      where: { companyId, status: 'pending' },
+    });
+    if (existingRequest) {
+      throw new BadRequestException('Заявка на IPO уже подана и ожидает рассмотрения');
+    }
+
     const ipoFee = exchangeState.ipoFee || 0;
-    if (ipoFee > 0) {
+    if (companyAccount.balance < ipoFee) {
+      throw new BadRequestException(`На коммерческом счете компании недостаточно средств для оплаты пошлины (${ipoFee} ${companyAccount.currencyCode})`);
+    }
+
+    const request = this.ipoRequestRepository.create({
+      companyId,
+      companyName: company.name,
+      stateId: dto.exchangeStateId,
+      totalShares: dto.totalShares || 1000,
+      initialPrice: dto.initialPrice || 10.0,
+      feeAmount: ipoFee,
+      status: 'pending',
+    });
+    await this.ipoRequestRepository.save(request);
+
+    return company;
+  }
+
+  public async getIpoRequests(stateId: string, username: string): Promise<IpoRequest[]> {
+    const state = await this.stateRepository.findOne({ where: { id: stateId } });
+    if (!state) throw new NotFoundException('Государство не найдено');
+
+    const isTreasurer = state.treasurerUsername?.toLowerCase() === username.toLowerCase();
+    const isLeader = state.leaderUsername?.toLowerCase() === username.toLowerCase();
+    if (!isTreasurer && !isLeader) {
+      throw new ForbiddenException('Только казначей или президент могут просматривать заявки на IPO');
+    }
+
+    return this.ipoRequestRepository.find({
+      where: { stateId, status: 'pending' },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  public async reviewIpoRequest(
+    requestId: string,
+    action: 'approved' | 'rejected',
+    username: string
+  ): Promise<IpoRequest> {
+    const request = await this.ipoRequestRepository.findOne({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Заявка не найдена');
+    if (request.status !== 'pending') throw new BadRequestException('Заявка уже обработана');
+
+    const state = await this.stateRepository.findOne({ where: { id: request.stateId } });
+    if (!state) throw new NotFoundException('Государство не найдено');
+
+    const isTreasurer = state.treasurerUsername?.toLowerCase() === username.toLowerCase();
+    const isLeader = state.leaderUsername?.toLowerCase() === username.toLowerCase();
+    if (!isTreasurer && !isLeader) {
+      throw new ForbiddenException('Только казначей или президент могут обрабатывать заявки на IPO');
+    }
+
+    if (action === 'rejected') {
+      request.status = 'rejected';
+      return this.ipoRequestRepository.save(request);
+    }
+
+    const company = await this.companyRepository.findOne({ where: { id: request.companyId } });
+    if (!company) throw new NotFoundException('Компания не найдена');
+    
+    const companyAccount = await this.accountRepository.findOne({ where: { id: company.accountId as string } });
+    if (!companyAccount) throw new NotFoundException('Коммерческий счет компании не найден');
+
+    if (!state.treasuryAccountNumber) {
+      throw new BadRequestException('У данного государства нет Национального Банка (биржи)');
+    }
+
+    if (request.feeAmount > 0) {
       try {
-        await this.economyService.transferMoney(username, {
+        await this.economyService.transferMoney(company.ownerUsername, {
           fromNumber: companyAccount.accountNumber,
-          toNumber: exchangeState.treasuryAccountNumber,
-          amount: ipoFee,
-          description: `Оплата пошлины за листинг на бирже государства ${exchangeState.name}`,
+          toNumber: state.treasuryAccountNumber,
+          amount: request.feeAmount,
+          description: `Оплата пошлины за листинг на бирже государства ${state.name}`,
         });
       } catch (err) {
-        throw new BadRequestException(`Не удалось оплатить пошлину за IPO (${ipoFee} ${companyAccount.currencyCode}). Ошибка: ${err.message}`);
+        throw new BadRequestException(`Не удалось списать пошлину за IPO. Возможно, на счету компании недостаточно средств. Ошибка: ${err.message}`);
       }
     }
 
     company.isPublic = true;
-    company.exchangeStateId = dto.exchangeStateId;
-    company.totalShares = dto.totalShares || 1000;
-    company.availableShares = company.totalShares;
-    company.sharePrice = dto.initialPrice || 10.0;
+    company.exchangeStateId = request.stateId;
+    company.totalShares = request.totalShares;
+    company.availableShares = request.totalShares;
+    company.sharePrice = request.initialPrice;
     company.priceChange24h = 0.0;
 
     const savedCompany = await this.companyRepository.save(company);
@@ -124,7 +200,8 @@ export class StockExchangeService {
     });
     await this.sharePriceHistoryRepository.save(history);
 
-    return savedCompany;
+    request.status = 'approved';
+    return this.ipoRequestRepository.save(request);
   }
 
   public async buyShares(
