@@ -569,8 +569,14 @@ export class EconomyService {
     const accountsToSave = [senderAccount, receiverAccount];
     
     if (taxAmount > 0 && treasuryAccountToReceiveTax) {
-        treasuryAccountToReceiveTax.balance = Number((treasuryAccountToReceiveTax.balance + taxAmount).toFixed(2));
-        accountsToSave.push(treasuryAccountToReceiveTax);
+        if (treasuryAccountToReceiveTax.accountNumber === senderAccount.accountNumber) {
+            senderAccount.balance = Number((senderAccount.balance + taxAmount).toFixed(2));
+        } else if (treasuryAccountToReceiveTax.accountNumber === receiverAccount.accountNumber) {
+            receiverAccount.balance = Number((receiverAccount.balance + taxAmount).toFixed(2));
+        } else {
+            treasuryAccountToReceiveTax.balance = Number((treasuryAccountToReceiveTax.balance + taxAmount).toFixed(2));
+            accountsToSave.push(treasuryAccountToReceiveTax);
+        }
     }
 
     await this.accountRepository.save(accountsToSave);
