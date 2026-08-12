@@ -31,10 +31,12 @@ export class CompaniesService {
   public async getAllCompanies(filters?: {
     cityId?: string;
     stateId?: string;
+    ownerUsername?: string;
   }): Promise<Company[]> {
     const where: any = {};
     if (filters?.cityId) where.cityId = filters.cityId;
     if (filters?.stateId) where.stateId = filters.stateId;
+    if (filters?.ownerUsername) where.ownerUsername = filters.ownerUsername;
 
     return this.companyRepository.find({
       where,

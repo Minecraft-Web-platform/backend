@@ -21,8 +21,9 @@ export class CompaniesController {
   async getAllCompanies(
     @Query('cityId') cityId?: string,
     @Query('stateId') stateId?: string,
+    @Query('ownerUsername') ownerUsername?: string,
   ) {
-    return this.companiesService.getAllCompanies({ cityId, stateId });
+    return this.companiesService.getAllCompanies({ cityId, stateId, ownerUsername });
   }
 
   @Get(':id')

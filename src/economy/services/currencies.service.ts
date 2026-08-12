@@ -248,4 +248,8 @@ export class CurrenciesService {
 
     return this.currencyRepository.save(currency);
   }
+
+  public async getCurrencyByStateId(stateId: string): Promise<Currency | null> {
+    return this.currencyRepository.findOne({ where: { stateId } });
+  }
 }

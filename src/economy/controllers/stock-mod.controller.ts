@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, Query, BadRequestException, UseGuar
 import { StockExchangeService } from '../services/stock-exchange.service';
 import { CompaniesService } from '../services/companies.service';
 import { StatesService } from '../../states/states.service';
+import { EconomyService } from '../services/economy.service';
 
 @Controller('stock-mod')
 export class StockModController {
@@ -9,7 +10,27 @@ export class StockModController {
     private readonly stockService: StockExchangeService,
     private readonly companiesService: CompaniesService,
     private readonly statesService: StatesService,
+    private readonly economyService: EconomyService,
   ) {}
+
+  @Get('permissions/state/:stateId')
+  async checkStatePermissions(
+    @Param('stateId') stateId: string,
+    @Query('playerUsername') playerUsername: string,
+  ) {
+    if (!playerUsername || !stateId) throw new BadRequestException('Missing parameters');
+    try {
+      const state = await this.statesService.getStateById(stateId);
+      if (!state) return { hasAccess: false };
+      
+      const lower = playerUsername.toLowerCase();
+      // For now, assuming leader and treasurer. Admins might need user fetch, but this satisfies basic needs
+      const hasAccess = state.leaderUsername?.toLowerCase() === lower || state.treasurerUsername?.toLowerCase() === lower;
+      return { hasAccess, stateName: state.name };
+    } catch (e) {
+      return { hasAccess: false };
+    }
+  }
 
   @Get('portfolio')
   async getPortfolio(
@@ -57,11 +78,22 @@ export class StockModController {
 
   @Get('companies')
   async getCompanies(@Query('exchangeStateId') exchangeStateId: string) {
-    const companies = await this.stockService.getPublicCompanies();
+    let companies = await this.stockService.getPublicCompanies();
     if (exchangeStateId) {
-      return companies.filter(c => c.exchangeStateId === exchangeStateId);
+      companies = companies.filter(c => c.exchangeStateId === exchangeStateId);
     }
-    return companies;
+    const result: any[] = [];
+    for (const comp of companies) {
+      const history = await this.stockService.getCompanySharePriceHistory(comp.id);
+      const last9 = history.slice(-9).map(h => h.price);
+      let currencyItem = "minecraft:gold_nugget";
+      if (comp.exchangeStateId) {
+        const item = await this.economyService.getAccountCurrencyItem(comp.exchangeStateId, 'gold_reserve');
+        if (item) currencyItem = item;
+      }
+      result.push({ ...comp, history: last9, currencyItem });
+    }
+    return result;
   }
 
   @Post('withdraw')

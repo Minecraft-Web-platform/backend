@@ -8,6 +8,7 @@ import { Company } from './entities/company.entity';
 import { CompanyShare } from './entities/company-share.entity';
 import { CompanySharePriceHistory } from './entities/company-share-price-history.entity';
 import { WithdrawnShare } from './entities/withdrawn-share.entity';
+import { Property } from './entities/property.entity';
 import { StateEntity } from '../states/entities/state.entity';
 import { CityEntity } from '../states/entities/city.entity';
 import { StateTreasuryItemEntity } from '../states/entities/state-treasury-item.entity';
@@ -22,6 +23,8 @@ import { CompaniesController } from './controllers/companies.controller';
 import { StockExchangeController } from './controllers/stock-exchange.controller';
 import { TreasuryModController } from './controllers/treasury-mod.controller';
 import { StockModController } from './controllers/stock-mod.controller';
+import { PropertyController } from './controllers/property.controller';
+import { PropertyService } from './services/property.service';
 import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
 import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
@@ -45,6 +48,7 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
       User,
       AccountTreasuryItemEntity,
       WithdrawnShare,
+      Property,
     ]),
     OwnJwtModule,
     UsersModule,
@@ -56,6 +60,7 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
     CurrenciesService,
     CompaniesService,
     StockExchangeService,
+    PropertyService,
   ],
   controllers: [
     EconomyController,
@@ -64,12 +69,14 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
     StockExchangeController,
     TreasuryModController,
     StockModController,
+    PropertyController,
   ],
   exports: [
     EconomyService,
     CurrenciesService,
     CompaniesService,
     StockExchangeService,
+    PropertyService,
   ],
 })
 export class EconomyModule {}

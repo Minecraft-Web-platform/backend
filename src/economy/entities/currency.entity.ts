@@ -43,6 +43,12 @@ export class Currency {
   @Column({ type: 'float', default: 0.0 })
   rateChange24h: number; // изменение курса за последние сутки (%)
 
+  @Column({ type: 'float', default: 500.0 })
+  propertyCreationFeeRate: number; // Делитель для комиссии за создание (totalIssued / propertyCreationFeeRate)
+
+  @Column({ type: 'float', default: 0.05 })
+  propertySalesTaxRate: number; // Налог на продажу недвижимости (в долях, 0.05 = 5%)
+
   @CreateDateColumn()
   createdAt: Date;
 }
