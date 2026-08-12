@@ -4,7 +4,10 @@ import {
   Entity,
   Index,
   PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { StreetEntity } from '../../states/entities/street.entity';
 
 export type PropertyCategory = 'real_estate' | 'special_object';
 export type PropertyOwnerType = 'personal' | 'company' | 'government';
@@ -60,7 +63,12 @@ export class Property {
   parentPropertyId: string | null;
 
   @Column({ type: 'varchar', nullable: true })
-  street: string | null;
+  @Index()
+  streetId: string | null;
+
+  @ManyToOne(() => StreetEntity, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'streetId' })
+  street?: StreetEntity;
 
   @Column({ type: 'varchar', nullable: true })
   houseNumber: string | null;

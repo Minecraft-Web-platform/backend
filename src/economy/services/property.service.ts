@@ -21,7 +21,7 @@ export interface CreatePropertyDto {
   centerCoordinates?: string;
   photoUrls?: string[];
   parentPropertyId?: string;
-  street?: string;
+  streetId?: string;
   houseNumber?: string;
   area?: number;
 }
@@ -168,7 +168,7 @@ export class PropertyService {
   }
 
   async getPropertiesByOwner(ownerId: string): Promise<Property[]> {
-    return this.propertyRepo.find({ where: { ownerId } });
+    return this.propertyRepo.find({ where: { ownerId }, relations: ['street'] });
   }
 
   async getMyProperties(username: string, uuid: string): Promise<Property[]> {
@@ -181,11 +181,15 @@ export class PropertyService {
     if (state) ownerIds.push(state.id);
 
     return this.propertyRepo.find({
-      where: { ownerId: In(ownerIds) }
+      where: { ownerId: In(ownerIds) },
+      relations: ['street']
     });
   }
 
-  async getMarketProperties(stateId: string): Promise<Property[]> {
-    return this.propertyRepo.find({ where: { stateId, isForSale: true } });
+  async getMarketProperties(stateId?: string): Promise<Property[]> {
+    if (stateId) {
+      return this.propertyRepo.find({ where: { stateId, isForSale: true }, relations: ['street'] });
+    }
+    return this.propertyRepo.find({ where: { isForSale: true }, relations: ['street'] });
   }
 }
