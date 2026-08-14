@@ -241,10 +241,10 @@ export class EconomyService {
       const currency = currencies.find(c => c.code === acc.currencyCode);
       const itemId = currency?.minecraftItemId || 'minecraft:paper';
       
-      const transactions = await this.transferRepository.createQueryBuilder('transfer')
+        const transactions = await this.transferRepository.createQueryBuilder('transfer')
         .where('transfer.fromAccountNumber = :accNum OR transfer.toAccountNumber = :accNum', { accNum: acc.accountNumber })
         .orderBy('transfer.createdAt', 'DESC')
-        .take(10)
+        .take(15)
         .getMany();
         
       const formattedTransactions: any[] = [];

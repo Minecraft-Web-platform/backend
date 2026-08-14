@@ -2,10 +2,15 @@ import { Controller, Get, Post, Body, Param, Query, BadRequestException, UseGuar
 import { EconomyService } from '../services/economy.service';
 import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
 
+import { CurrenciesService } from '../services/currencies.service';
+
 @UseGuards(ModIpGuard)
 @Controller('treasury-mod')
 export class TreasuryModController {
-  constructor(private readonly economyService: EconomyService) {}
+  constructor(
+    private readonly economyService: EconomyService,
+    private readonly currenciesService: CurrenciesService,
+  ) {}
 
   @Get('permissions')
   async checkPermissions(
@@ -26,7 +31,8 @@ export class TreasuryModController {
       throw new BadRequestException('Missing parameters');
     }
     const accounts = await this.economyService.getModAccounts(playerUsername);
-    return accounts;
+    const rates = await this.currenciesService.getAllCurrencies();
+    return { accounts, rates };
   }
 
   @Post('deposit')
