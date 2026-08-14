@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Body, Param, Query, BadRequestException, UseGuards } from '@nestjs/common';
 import { EconomyService } from '../services/economy.service';
+import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
 
+@UseGuards(ModIpGuard)
 @Controller('treasury-mod')
 export class TreasuryModController {
   constructor(private readonly economyService: EconomyService) {}

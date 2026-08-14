@@ -224,6 +224,8 @@ export class CurrenciesService {
         where: { stateId: currency.stateId },
       });
       const ITEM_VALUES: Record<string, number> = {
+        'minecraft:gold_nugget': 1,
+        'minecraft:gold_ingot': 9,
         'minecraft:gold_block': 81,
         'minecraft:diamond': 20,
         'minecraft:diamond_block': 180,

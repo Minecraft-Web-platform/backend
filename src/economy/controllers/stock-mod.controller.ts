@@ -3,7 +3,9 @@ import { StockExchangeService } from '../services/stock-exchange.service';
 import { CompaniesService } from '../services/companies.service';
 import { StatesService } from '../../states/states.service';
 import { EconomyService } from '../services/economy.service';
+import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
 
+@UseGuards(ModIpGuard)
 @Controller('stock-mod')
 export class StockModController {
   constructor(
