@@ -1,0 +1,8 @@
+export enum CompanyOrderStatus {
+  NEW = 'NEW',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  DISPUTED = 'DISPUTED',
+  REFUNDED = 'REFUNDED',
+}

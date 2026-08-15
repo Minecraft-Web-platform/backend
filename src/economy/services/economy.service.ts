@@ -637,12 +637,22 @@ export class EconomyService {
     }) : [];
     const companyMap = new Map(companies.map(c => [c.accountId, c]));
 
+    const stateIdsToFetch = new Set<string>();
+    companies.forEach(c => {
+        if (c.stateId) stateIdsToFetch.add(c.stateId);
+    });
+    const extraStates = stateIdsToFetch.size > 0 ? await this.stateRepository.find({
+        where: { id: In([...stateIdsToFetch]) },
+    }) : [];
+    const stateByIdMap = new Map(extraStates.map(s => [s.id, s]));
+
     const enrichAccount = (accNum: string) => {
       const acc = accountMap.get(accNum);
       if (!acc) return { ownerName: accNum, coatOfArms: null };
       
       let ownerName = acc.ownerUsername;
       let coatOfArms: string | null = null;
+      let fallbackCoatOfArms: string | null = null;
       
       if (acc.type === 'personal') {
          const user = userMap.get(acc.ownerUsername.toLowerCase());
@@ -661,9 +671,13 @@ export class EconomyService {
          if (company) {
             ownerName = company.name;
             coatOfArms = company.logoUrl || null;
+            if (company.stateId) {
+                const s = stateByIdMap.get(company.stateId);
+                if (s) fallbackCoatOfArms = s.coatOfArmsUrl || null;
+            }
          }
       }
-      return { ownerName, coatOfArms };
+      return { ownerName, coatOfArms: coatOfArms || fallbackCoatOfArms, fallbackCoatOfArms };
     };
 
     return transfers.map(t => {
@@ -673,8 +687,10 @@ export class EconomyService {
         ...t,
         fromOwnerName: fromEnriched.ownerName,
         fromCoatOfArms: fromEnriched.coatOfArms,
+        fromFallbackCoatOfArms: fromEnriched.fallbackCoatOfArms,
         toOwnerName: toEnriched.ownerName,
         toCoatOfArms: toEnriched.coatOfArms,
+        toFallbackCoatOfArms: toEnriched.fallbackCoatOfArms,
       };
     });
   }

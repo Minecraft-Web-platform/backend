@@ -7,9 +7,10 @@ import { ConfirmCodeService } from './confirm-code.service';
 import { ConfirmationCode } from './entities/confirmation-code.entity';
 import { ConfirmCodeRepository } from './repositories/confirm-code.repository';
 import { OwnJwtModule } from 'src/own-jwt/own-jwt.module';
+import { UploadModule } from 'src/upload/upload.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, ConfirmationCode]), OwnJwtModule],
+  imports: [TypeOrmModule.forFeature([User, ConfirmationCode]), OwnJwtModule, UploadModule],
   providers: [UsersService, ConfirmCodeService, ConfirmCodeRepository],
   controllers: [UsersController],
   exports: [UsersService, ConfirmCodeService],

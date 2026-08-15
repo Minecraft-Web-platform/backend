@@ -13,9 +13,10 @@ import { NewsCategoryService } from './news-category.service';
 import { NewsCategoryController } from './news-category.controller';
 import { NewsBlockService } from './news-blocks.service';
 import { NewsAdminController } from './news-admin.controller';
+import { UploadModule } from 'src/upload/upload.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([News, NewsBlock, NewsCategory]), OwnJwtModule, UsersModule],
+  imports: [TypeOrmModule.forFeature([News, NewsBlock, NewsCategory]), OwnJwtModule, UsersModule, UploadModule],
   providers: [NewsService, NewsCategoryService, NewsBlockService],
   controllers: [NewsController, NewsCategoryController, NewsAdminController],
 })

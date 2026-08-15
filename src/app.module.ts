@@ -14,6 +14,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EventsModule } from './events/events.module';
 
 import { EconomyModule } from './economy/economy.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { EconomyModule } from './economy/economy.module';
     StatesModule,
     EconomyModule,
     EventsModule,
+    UploadModule,
   ],
 })
 export class AppModule {}

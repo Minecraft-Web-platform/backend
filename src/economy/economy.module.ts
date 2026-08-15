@@ -26,12 +26,19 @@ import { TreasuryModController } from './controllers/treasury-mod.controller';
 import { StockModController } from './controllers/stock-mod.controller';
 import { PropertyController } from './controllers/property.controller';
 import { PropertyService } from './services/property.service';
+import { CompanyServicesService } from './services/company-services.service';
+import { CompanyServicesController } from './controllers/company-services.controller';
 import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
 import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
 import { StatesModule } from '../states/states.module';
 
 import { AccountTreasuryItemEntity } from './entities/account-treasury-item.entity';
+import { CompanyService } from './entities/company-service.entity';
+import { CompanyServiceSubItem } from './entities/company-service-sub-item.entity';
+import { CompanyOrder } from './entities/company-order.entity';
+import { CompanyOrderItem } from './entities/company-order-item.entity';
+import { CompanyOrderStatusHistory } from './entities/company-order-status-history.entity';
 
 @Module({
   imports: [
@@ -51,6 +58,11 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
       WithdrawnShare,
       Property,
       IpoRequest,
+      CompanyService,
+      CompanyServiceSubItem,
+      CompanyOrder,
+      CompanyOrderItem,
+      CompanyOrderStatusHistory,
     ]),
     OwnJwtModule,
     UsersModule,
@@ -63,6 +75,7 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
     CompaniesService,
     StockExchangeService,
     PropertyService,
+    CompanyServicesService,
   ],
   controllers: [
     EconomyController,
@@ -72,6 +85,7 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
     TreasuryModController,
     StockModController,
     PropertyController,
+    CompanyServicesController,
   ],
   exports: [
     EconomyService,
@@ -79,6 +93,7 @@ import { AccountTreasuryItemEntity } from './entities/account-treasury-item.enti
     CompaniesService,
     StockExchangeService,
     PropertyService,
+    CompanyServicesService,
   ],
 })
 export class EconomyModule {}
