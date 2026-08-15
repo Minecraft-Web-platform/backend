@@ -112,4 +112,20 @@ export class CompanyServicesController {
   ) {
     return this.servicesService.arbitrateOrder(req.user.username_lower, orderId, dto);
   }
+
+  @Put('order/:orderId/escalate')
+  @UseGuards(AccessTokenGuard)
+  async escalateOrder(
+    @Param('orderId') orderId: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: { comment: string }
+  ) {
+    return this.servicesService.escalateOrder(req.user.username_lower, orderId, dto.comment);
+  }
+
+  @Get('orders/disputed')
+  @UseGuards(AccessTokenGuard)
+  async getDisputedOrders(@Req() req: AuthenticatedRequest) {
+    return this.servicesService.getDisputedOrders(req.user.username_lower);
+  }
 }
