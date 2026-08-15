@@ -11,15 +11,15 @@ export class CreditCardsService {
     private repo: Repository<CreditCard>,
   ) {}
 
-  public async getAll(username: User['username']): Promise<CreditCard[]> {
+  public async getAll(_username: User['username']): Promise<CreditCard[]> {
     return [];
   }
 
-  public async getByUUID(uuid: CreditCard['id']): Promise<CreditCard | null> {
+  public async getByUUID(_uuid: CreditCard['id']): Promise<CreditCard | null> {
     return null;
   }
 
   public async create() {}
 
-  public async delete(uuid: CreditCard['id']): Promise<void> {}
+  public async delete(_uuid: CreditCard['id']): Promise<void> {}
 }

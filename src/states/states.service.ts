@@ -14,6 +14,7 @@ import { User } from '../users/entities/user.entity';
 import { Account } from '../economy/entities/account.entity';
 import { MinecraftRconService } from '../minecraft-rcon/minecraft-rcon.service';
 import { EventsService } from '../events/events.service';
+import { AutoNewsService } from '../news/auto-news.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   CreateCityDto,
@@ -56,6 +57,7 @@ export class StatesService {
     private readonly treasuryRepo: Repository<StateTreasuryItemEntity>,
     private readonly rconService: MinecraftRconService,
     private readonly eventsService: EventsService,
+    private readonly autoNewsService: AutoNewsService,
   ) {}
 
   // --- States ---
@@ -89,6 +91,12 @@ export class StatesService {
         { stateId: savedState.id },
       );
     }
+    
+    // Auto-news about state creation
+    if (creatorUsername) {
+      await this.autoNewsService.publishStateCreatedNews(savedState.name, creatorUsername);
+    }
+    
     return savedState;
   }
 
@@ -881,7 +889,7 @@ export class StatesService {
       for (const item of parsed.items) {
         const qty = Number(item.qty);
         if (qty > 0) {
-          let existing = await this.treasuryRepo.findOne({
+          const existing = await this.treasuryRepo.findOne({
             where: { stateId, minecraftItemId: item.id },
           });
           if (existing) {

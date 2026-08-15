@@ -31,7 +31,7 @@ export class NewsController {
     private readonly newsService: NewsService,
     private readonly usersService: UsersService,
     private readonly categoryService: NewsCategoryService,
-  ) {}
+  ) { }
 
   @UseGuards(AccessTokenGuard)
   @Post('image')
@@ -77,8 +77,6 @@ export class NewsController {
   async findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<News> {
     const username = req.user.username_lower;
     const user = await this.usersService.getByUsername(username);
-
-    console.log(user)
 
     if (!user?.isAdmin) {
       return this.newsService.findOne(id, { onlyApproved: true });

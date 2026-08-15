@@ -36,7 +36,7 @@ export class ModsController {
         try {
           s.destroy();
         } catch {
-          console.log('Failed to destroy stream');
+
         }
       }
       activeStreams.clear();

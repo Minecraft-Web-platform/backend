@@ -11,6 +11,7 @@ import { CompanyShare } from '../entities/company-share.entity';
 import { Account } from '../entities/account.entity';
 import { CompanySharePriceHistory } from '../entities/company-share-price-history.entity';
 import { EconomyService } from './economy.service';
+import { AutoNewsService } from '../../news/auto-news.service';
 
 import { StateEntity } from '../../states/entities/state.entity';
 import { WithdrawnShare } from '../entities/withdrawn-share.entity';
@@ -34,6 +35,7 @@ export class StockExchangeService {
     @InjectRepository(IpoRequest)
     private readonly ipoRequestRepository: Repository<IpoRequest>,
     private readonly economyService: EconomyService,
+    private readonly autoNewsService: AutoNewsService,
   ) {}
 
   public async getPublicCompanies(): Promise<Company[]> {
@@ -201,7 +203,17 @@ export class StockExchangeService {
     await this.sharePriceHistoryRepository.save(history);
 
     request.status = 'approved';
-    return this.ipoRequestRepository.save(request);
+    const savedRequest = await this.ipoRequestRepository.save(request);
+
+    // Auto-news about IPO
+    await this.autoNewsService.publishIpoNews(
+      company.name,
+      request.totalShares,
+      request.initialPrice,
+      username,
+    );
+
+    return savedRequest;
   }
 
   public async buyShares(
@@ -566,7 +578,8 @@ export class StockExchangeService {
             description: `Выплата дивидендов компании ${company.name}`,
           });
           distributed += payout;
-        } catch (e) {
+        } catch (e: unknown) {
+          console.error(`Failed to transfer dividend to ${username}`, e);
           // Игнорируем ошибку перевода для конкретного пользователя, чтобы не прерывать цикл
         }
       }

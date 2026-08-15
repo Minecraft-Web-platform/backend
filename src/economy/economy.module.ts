@@ -32,6 +32,7 @@ import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
 import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
 import { StatesModule } from '../states/states.module';
+import { NewsModule } from '../news/news.module';
 
 import { AccountTreasuryItemEntity } from './entities/account-treasury-item.entity';
 import { CompanyService } from './entities/company-service.entity';
@@ -68,6 +69,7 @@ import { CompanyOrderStatusHistory } from './entities/company-order-status-histo
     UsersModule,
     MinecraftRconModule,
     StatesModule,
+    NewsModule,
   ],
   providers: [
     EconomyService,

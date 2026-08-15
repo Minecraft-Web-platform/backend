@@ -22,6 +22,7 @@ import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
 import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
 import { EventsModule } from '../events/events.module';
+import { NewsModule } from '../news/news.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { EventsModule } from '../events/events.module';
     UsersModule,
     MinecraftRconModule,
     EventsModule,
+    NewsModule,
   ],
   providers: [StatesService, StreetsService],
   controllers: [StatesController, CitiesController, ElectionsController, StreetsController],

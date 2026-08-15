@@ -7,6 +7,8 @@ import { RegisterDto } from './dtos/register.dto';
 import { LoginDto } from './dtos/login.dto';
 import { ResetPasswordDto } from './dtos/reset-password.dto';
 import { initEmailConfirmationDto } from './dtos/init-email-confirmation.dto';
+import { ConfirmEmailDto } from './dtos/confirm-email.dto';
+import { InitPasswordResetDto } from './dtos/init-password-reset.dto';
 
 import { AccessTokenGuard } from './guards/access-token.guard';
 import { AuthenticatedRequest } from './types/auth-request.type';
@@ -58,10 +60,10 @@ export class AuthController {
   @HttpCode(200)
   @Post('confirm-email')
   @UseGuards(AccessTokenGuard)
-  public async confirmEmail(@Req() request: AuthenticatedRequest, @Body('confirmationCode') confirmCode: string) {
+  public async confirmEmail(@Req() request: AuthenticatedRequest, @Body() { confirmationCode }: ConfirmEmailDto) {
     const username_lower = request.user.username_lower;
 
-    return this.authService.confirmEmail(confirmCode, username_lower);
+    return this.authService.confirmEmail(confirmationCode, username_lower);
   }
 
   @HttpCode(200)
@@ -75,7 +77,7 @@ export class AuthController {
 
   @HttpCode(200)
   @Post('init-password-resetting')
-  public async initPasswordReset(@Body('username') username: string) {
+  public async initPasswordReset(@Body() { username }: InitPasswordResetDto) {
     const username_lower = username.toLowerCase();
 
     return this.authService.initPasswordReset(username_lower);

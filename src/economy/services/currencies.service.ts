@@ -11,6 +11,7 @@ import { StateEntity } from '../../states/entities/state.entity';
 import { Account } from '../entities/account.entity';
 
 import { StateTreasuryItemEntity } from '../../states/entities/state-treasury-item.entity';
+import { AutoNewsService } from '../../news/auto-news.service';
 
 @Injectable()
 export class CurrenciesService {
@@ -23,6 +24,7 @@ export class CurrenciesService {
     private readonly accountRepository: Repository<Account>,
     @InjectRepository(StateTreasuryItemEntity)
     private readonly treasuryRepo: Repository<StateTreasuryItemEntity>,
+    private readonly autoNewsService: AutoNewsService,
   ) {}
 
   public async getAllCurrencies(): Promise<Currency[]> {
@@ -122,7 +124,18 @@ export class CurrenciesService {
       }
     }
 
-    return this.recalculateExchangeRate(saved);
+    const recalculated = await this.recalculateExchangeRate(saved);
+
+    if (dto.stateId) {
+      const state = await this.stateRepository.findOne({
+        where: { id: dto.stateId },
+      });
+      if (state) {
+        await this.autoNewsService.publishCurrencyNews(saved.name, saved.code, state.name, username);
+      }
+    }
+
+    return recalculated;
   }
 
   public async issueCurrency(

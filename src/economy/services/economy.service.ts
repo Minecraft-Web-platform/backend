@@ -28,10 +28,10 @@ const ITEM_VALUES: Record<string, number> = {
   'minecraft:netherite_block': 1350,
 };
 
-const GOLD_TIERS = [ { id: 'minecraft:gold_block', val: 81 }, { id: 'minecraft:gold_ingot', val: 9 }, { id: 'minecraft:gold_nugget', val: 1 } ];
-const DIAMOND_TIERS = [ { id: 'minecraft:diamond_block', val: 180 }, { id: 'minecraft:diamond', val: 20 } ];
-const EMERALD_TIERS = [ { id: 'minecraft:emerald_block', val: 108 }, { id: 'minecraft:emerald', val: 12 } ];
-const NETHERITE_TIERS = [ { id: 'minecraft:netherite_block', val: 1350 }, { id: 'minecraft:netherite_ingot', val: 150 }, { id: 'minecraft:netherite_scrap', val: 25 } ];
+const GOLD_TIERS = [{ id: 'minecraft:gold_block', val: 81 }, { id: 'minecraft:gold_ingot', val: 9 }, { id: 'minecraft:gold_nugget', val: 1 }];
+const DIAMOND_TIERS = [{ id: 'minecraft:diamond_block', val: 180 }, { id: 'minecraft:diamond', val: 20 }];
+const EMERALD_TIERS = [{ id: 'minecraft:emerald_block', val: 108 }, { id: 'minecraft:emerald', val: 12 }];
+const NETHERITE_TIERS = [{ id: 'minecraft:netherite_block', val: 1350 }, { id: 'minecraft:netherite_ingot', val: 150 }, { id: 'minecraft:netherite_scrap', val: 25 }];
 
 @Injectable()
 export class EconomyService {
@@ -116,15 +116,29 @@ export class EconomyService {
         map.set(t.currencyCode, t.ownerUsername);
       }
     }
-    
+
     const currencies = await this.currencyRepository.find();
+    const stateIdsToFetch = new Set<string>();
     for (const c of currencies) {
-       if (!map.has(c.code) && c.stateId) {
-          const state = await this.stateRepository.findOne({ where: { id: c.stateId } });
-          if (state) map.set(c.code, `НАЦИОНАЛЬНЫЙ БАНК ${state.name.toUpperCase()}`);
-       }
+      if (!map.has(c.code) && c.stateId) {
+        stateIdsToFetch.add(c.stateId);
+      }
     }
     
+    if (stateIdsToFetch.size > 0) {
+      const states = await this.stateRepository.find({
+        where: { id: In([...stateIdsToFetch]) }
+      });
+      const stateMap = new Map(states.map(s => [s.id, s]));
+      
+      for (const c of currencies) {
+        if (!map.has(c.code) && c.stateId) {
+          const state = stateMap.get(c.stateId);
+          if (state) map.set(c.code, `НАЦИОНАЛЬНЫЙ БАНК ${state.name.toUpperCase()}`);
+        }
+      }
+    }
+
     return map;
   }
 
@@ -137,7 +151,7 @@ export class EconomyService {
       where: { ownerUsername: lower },
       order: { createdAt: 'DESC' },
     });
-    
+
     const accounts = [...userAccounts];
 
     const state = await this.stateRepository.createQueryBuilder('state')
@@ -187,16 +201,16 @@ export class EconomyService {
   public async getModAccounts(playerUsername: string): Promise<any[]> {
     const lower = playerUsername.toLowerCase();
     const result: any[] = [];
-    
+
     const personalAccounts = await this.accountRepository.find({
       where: { ownerUsername: lower, type: 'personal' },
       order: { createdAt: 'DESC' },
     });
-    
+
     const companies = await this.companyRepository.createQueryBuilder('company')
       .where('LOWER(company.ownerUsername) = :lower', { lower })
       .getMany();
-      
+
     const companyAccounts: Account[] = [];
     if (companies.length > 0) {
       const accountIds = companies.map(c => c.accountId).filter(id => id);
@@ -207,61 +221,100 @@ export class EconomyService {
         companyAccounts.push(...accs);
       }
     }
-    
+
     const state = await this.stateRepository.createQueryBuilder('state')
       .where('LOWER(state.leaderUsername) = :lower', { lower })
       .getOne();
-      
+
     const treasuryAccounts: Account[] = [];
     if (state && state.treasuryAccountNumber) {
       const acc = await this.accountRepository.findOne({ where: { accountNumber: state.treasuryAccountNumber } });
       if (acc) treasuryAccounts.push(acc);
     }
-    
+
     const currencies = await this.currencyRepository.find();
     const bankMap = await this.getBankNamesMap();
     const defaultBankName = 'НАЦИОНАЛЬНЫЙ БАНК';
 
-    const getAccountName = async (accNum: string) => {
-        const a = await this.accountRepository.findOne({ where: { accountNumber: accNum } });
-        if (!a) return 'Неизвестно';
-        if (a.type === 'personal') return a.ownerUsername;
-        if (a.type === 'company') {
-            const comp = await this.companyRepository.findOne({ where: { accountId: a.id } });
-            return comp ? `Фирма '${comp.name}'` : 'Фирма';
-        }
-        if (a.type === 'treasury') {
-            const st = await this.stateRepository.findOne({ where: { treasuryAccountNumber: a.accountNumber } });
-            return st ? `Банк '${st.name}'` : 'Банк';
-        }
-        return a.ownerUsername;
-    };
+    const allAccountsToProcess = [...personalAccounts, ...companyAccounts, ...treasuryAccounts];
+
+    // Bulk fetch transactions for all accounts
+    const allAccountNumbers = allAccountsToProcess.map(a => a.accountNumber);
+    let allTransactions: Transfer[] = [];
+    if (allAccountNumbers.length > 0) {
+      // Actually we need up to 15 per account. Doing it efficiently:
+      for (const acc of allAccountsToProcess) {
+        const txs = await this.transferRepository.createQueryBuilder('transfer')
+          .where('transfer.fromAccountNumber = :accNum OR transfer.toAccountNumber = :accNum', { accNum: acc.accountNumber })
+          .orderBy('transfer.createdAt', 'DESC')
+          .take(15)
+          .getMany();
+        allTransactions = allTransactions.concat(txs);
+      }
+    }
+
+    // Collect all involved account numbers from transactions
+    const txAccountNumbers = [...new Set(allTransactions.flatMap(t => [t.fromAccountNumber, t.toAccountNumber]).filter(n => !!n))];
+    let txAccounts: Account[] = [];
+    if (txAccountNumbers.length > 0) {
+      txAccounts = await this.accountRepository.find({
+        where: { accountNumber: In(txAccountNumbers) },
+      });
+    }
+
+    const txAccountMap = new Map(txAccounts.map(a => [a.accountNumber, a]));
     
-    const formatAccount = async (acc: Account, title: string) => {
+    // Bulk fetch companies for txAccounts
+    const companyTxAccounts = txAccounts.filter(a => a.type === 'company');
+    const companyTxAccountIds = [...new Set(companyTxAccounts.map(a => a.id))];
+    const txCompanies = companyTxAccountIds.length > 0 ? await this.companyRepository.find({
+      where: { accountId: In(companyTxAccountIds) }
+    }) : [];
+    const txCompanyMap = new Map(txCompanies.map(c => [c.accountId, c]));
+
+    // Bulk fetch states for txAccounts
+    const treasuryTxAccounts = txAccounts.filter(a => a.type === 'treasury');
+    const treasuryTxAccNums = [...new Set(treasuryTxAccounts.map(a => a.accountNumber))];
+    const txStates = treasuryTxAccNums.length > 0 ? await this.stateRepository.find({
+      where: { treasuryAccountNumber: In(treasuryTxAccNums) }
+    }) : [];
+    const txStateMap = new Map(txStates.map(s => [s.treasuryAccountNumber, s]));
+
+    const getAccountName = (accNum: string) => {
+      const a = txAccountMap.get(accNum);
+      if (!a) return 'Неизвестно';
+      if (a.type === 'personal') return a.ownerUsername;
+      if (a.type === 'company') {
+        const comp = txCompanyMap.get(a.id);
+        return comp ? `Фирма '${comp.name}'` : 'Фирма';
+      }
+      if (a.type === 'treasury') {
+        const st = txStateMap.get(a.accountNumber);
+        return st ? `Банк '${st.name}'` : 'Банк';
+      }
+      return a.ownerUsername;
+    };
+
+    const formatAccount = (acc: Account, title: string) => {
       const currency = currencies.find(c => c.code === acc.currencyCode);
       const itemId = currency?.minecraftItemId || 'minecraft:paper';
-      
-        const transactions = await this.transferRepository.createQueryBuilder('transfer')
-        .where('transfer.fromAccountNumber = :accNum OR transfer.toAccountNumber = :accNum', { accNum: acc.accountNumber })
-        .orderBy('transfer.createdAt', 'DESC')
-        .take(15)
-        .getMany();
-        
-      const formattedTransactions: any[] = [];
-      for (const t of transactions) {
-         const fromName = await getAccountName(t.fromAccountNumber);
-         const toName = await getAccountName(t.toAccountNumber);
-         formattedTransactions.push({
-            id: t.id,
-            amount: t.amount,
-            isIncoming: t.toAccountNumber === acc.accountNumber,
-            description: t.description || (t.toAccountNumber === acc.accountNumber ? 'Пополнение' : 'Перевод'),
-            fromName,
-            toName,
-            createdAt: t.createdAt
-         });
-      }
-        
+
+      const accountTransactions = allTransactions.filter(t => t.fromAccountNumber === acc.accountNumber || t.toAccountNumber === acc.accountNumber).slice(0, 15);
+
+      const formattedTransactions = accountTransactions.map(t => {
+        const fromName = getAccountName(t.fromAccountNumber);
+        const toName = getAccountName(t.toAccountNumber);
+        return {
+          id: t.id,
+          amount: t.amount,
+          isIncoming: t.toAccountNumber === acc.accountNumber,
+          description: t.description || (t.toAccountNumber === acc.accountNumber ? 'Пополнение' : 'Перевод'),
+          fromName,
+          toName,
+          createdAt: t.createdAt
+        };
+      });
+
       return {
         id: acc.id,
         accountNumber: acc.accountNumber,
@@ -274,32 +327,32 @@ export class EconomyService {
         transactions: formattedTransactions
       };
     };
-    
+
     for (const acc of personalAccounts) {
-      result.push(await formatAccount(acc, 'Личный счет'));
+      result.push(formatAccount(acc, 'Личный счет'));
     }
     for (const acc of companyAccounts) {
       const comp = companies.find(c => c.accountId === acc.id);
-      result.push(await formatAccount(acc, `Счет компании ${comp?.name || ''}`));
+      result.push(formatAccount(acc, `Счет компании ${comp?.name || ''}`));
     }
     for (const acc of treasuryAccounts) {
-      result.push(await formatAccount(acc, `Казначейство ${state?.name || ''}`));
+      result.push(formatAccount(acc, `Казначейство ${state?.name || ''}`));
     }
-    
+
     return result;
   }
 
   private async hasAccessToAccount(account: Account, username: string): Promise<boolean> {
     const lowerUser = username.toLowerCase();
     if (account.ownerUsername === lowerUser) return true;
-    
+
     if (account.type === 'treasury') {
       const state = await this.stateRepository.findOne({ where: { treasuryAccountNumber: account.accountNumber } });
       if (state && (state.leaderUsername?.toLowerCase() === lowerUser || state.treasurerUsername?.toLowerCase() === lowerUser)) {
         return true;
       }
     }
-    
+
     return false;
   }
 
@@ -363,7 +416,7 @@ export class EconomyService {
     ).toString();
     const cvv = Math.floor(100 + Math.random() * 900).toString();
     const expiresAt = '12/29';
-    
+
     let backgroundImageUrl: string | undefined;
     if (account.currencyCode) {
       const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
@@ -412,7 +465,7 @@ export class EconomyService {
     const defaultBankName = 'НАЦИОНАЛЬНЫЙ БАНК';
 
     const currencies = await this.currencyRepository.find();
-    
+
     const companies = await this.companyRepository.find({
       where: { ownerUsername: lower },
     });
@@ -422,13 +475,13 @@ export class EconomyService {
         card.account || accounts.find((a) => a.id === card.accountId);
       card.bankName =
         (acc && bankMap.get(acc.currencyCode)) || defaultBankName;
-        
+
       if (acc) {
         const currency = currencies.find(c => c.code === acc.currencyCode);
         if (currency) {
           (card as any).currencyItemId = currency.minecraftItemId;
         }
-        
+
         if (acc.type === 'company') {
           const company = companies.find(c => c.accountId === acc.id);
           if (company) {
@@ -436,7 +489,7 @@ export class EconomyService {
           }
         }
       }
-      
+
       return card;
     });
   }
@@ -522,23 +575,23 @@ export class EconomyService {
 
     let taxAmount = 0;
     let treasuryAccountToReceiveTax: Account | null = null;
-    
+
     // Определяем государство-эмитента валюты
     const currency = await this.currencyRepository.findOne({
       where: { code: senderAccount.currencyCode },
     });
-    
+
     if (currency && currency.stateId) {
       const state = await this.stateRepository.findOne({
         where: { id: currency.stateId },
       });
-      
+
       if (state && state.treasuryAccountNumber) {
         let taxRate = 0;
-        
+
         const isSenderCompany = senderAccount.type === 'company';
         const isReceiverCompany = receiverAccount.type === 'company';
-        
+
         if (!isSenderCompany && !isReceiverCompany) {
           // Игрок -> Игрок
           taxRate = state.playerToPlayerTransferFee || 0;
@@ -546,12 +599,12 @@ export class EconomyService {
           // Игрок -> Компания, Компания -> Игрок, Компания -> Компания
           taxRate = state.playerToCompanyTransferFee || 0;
         }
-        
+
         taxAmount = Number(((dto.amount * taxRate) / 100).toFixed(2));
         if (taxAmount > 0) {
           treasuryAccountToReceiveTax = await this.accountRepository.findOne({ where: { accountNumber: state.treasuryAccountNumber } });
           if (!treasuryAccountToReceiveTax) {
-             taxAmount = 0;
+            taxAmount = 0;
           }
         }
       }
@@ -567,16 +620,16 @@ export class EconomyService {
     );
 
     const accountsToSave = [senderAccount, receiverAccount];
-    
+
     if (taxAmount > 0 && treasuryAccountToReceiveTax) {
-        if (treasuryAccountToReceiveTax.accountNumber === senderAccount.accountNumber) {
-            senderAccount.balance = Number((senderAccount.balance + taxAmount).toFixed(2));
-        } else if (treasuryAccountToReceiveTax.accountNumber === receiverAccount.accountNumber) {
-            receiverAccount.balance = Number((receiverAccount.balance + taxAmount).toFixed(2));
-        } else {
-            treasuryAccountToReceiveTax.balance = Number((treasuryAccountToReceiveTax.balance + taxAmount).toFixed(2));
-            accountsToSave.push(treasuryAccountToReceiveTax);
-        }
+      if (treasuryAccountToReceiveTax.accountNumber === senderAccount.accountNumber) {
+        senderAccount.balance = Number((senderAccount.balance + taxAmount).toFixed(2));
+      } else if (treasuryAccountToReceiveTax.accountNumber === receiverAccount.accountNumber) {
+        receiverAccount.balance = Number((receiverAccount.balance + taxAmount).toFixed(2));
+      } else {
+        treasuryAccountToReceiveTax.balance = Number((treasuryAccountToReceiveTax.balance + taxAmount).toFixed(2));
+        accountsToSave.push(treasuryAccountToReceiveTax);
+      }
     }
 
     await this.accountRepository.save(accountsToSave);
@@ -614,7 +667,7 @@ export class EconomyService {
     });
 
     const accountMap = new Map(allAccounts.map(a => [a.accountNumber, a]));
-    
+
     const personalAccounts = allAccounts.filter(a => a.type === 'personal');
     const userNames = [...new Set(personalAccounts.map(a => a.ownerUsername))];
     const users = await this.userRepository.find({
@@ -626,56 +679,56 @@ export class EconomyService {
     const stateAccounts = allAccounts.filter(a => a.type === 'treasury');
     const treasuryAccNums = [...new Set(stateAccounts.map(a => a.accountNumber))];
     const states = treasuryAccNums.length > 0 ? await this.stateRepository.find({
-      where: { treasuryAccountNumber: require('typeorm').In(treasuryAccNums) },
+      where: { treasuryAccountNumber: In(treasuryAccNums) },
     }) : [];
     const stateMap = new Map(states.map(s => [s.treasuryAccountNumber, s]));
 
     const companyAccounts = allAccounts.filter(a => a.type === 'company');
     const companyAccountIds = [...new Set(companyAccounts.map(a => a.id))];
     const companies = companyAccountIds.length > 0 ? await this.companyRepository.find({
-        where: { accountId: In(companyAccountIds) },
+      where: { accountId: In(companyAccountIds) },
     }) : [];
     const companyMap = new Map(companies.map(c => [c.accountId, c]));
 
     const stateIdsToFetch = new Set<string>();
     companies.forEach(c => {
-        if (c.stateId) stateIdsToFetch.add(c.stateId);
+      if (c.stateId) stateIdsToFetch.add(c.stateId);
     });
     const extraStates = stateIdsToFetch.size > 0 ? await this.stateRepository.find({
-        where: { id: In([...stateIdsToFetch]) },
+      where: { id: In([...stateIdsToFetch]) },
     }) : [];
     const stateByIdMap = new Map(extraStates.map(s => [s.id, s]));
 
     const enrichAccount = (accNum: string) => {
       const acc = accountMap.get(accNum);
       if (!acc) return { ownerName: accNum, coatOfArms: null };
-      
+
       let ownerName = acc.ownerUsername;
       let coatOfArms: string | null = null;
       let fallbackCoatOfArms: string | null = null;
-      
+
       if (acc.type === 'personal') {
-         const user = userMap.get(acc.ownerUsername.toLowerCase());
-         if (user) {
-           ownerName = user.username;
-           coatOfArms = user.state?.coatOfArmsUrl || null;
-         }
+        const user = userMap.get(acc.ownerUsername.toLowerCase());
+        if (user) {
+          ownerName = user.username;
+          coatOfArms = user.state?.coatOfArmsUrl || null;
+        }
       } else if (acc.type === 'treasury') {
-         const state = stateMap.get(acc.accountNumber);
-         if (state) {
-           ownerName = `Казна: ${state.name}`;
-           coatOfArms = state.coatOfArmsUrl || null;
-         }
+        const state = stateMap.get(acc.accountNumber);
+        if (state) {
+          ownerName = `Казна: ${state.name}`;
+          coatOfArms = state.coatOfArmsUrl || null;
+        }
       } else if (acc.type === 'company') {
-         const company = companyMap.get(acc.id);
-         if (company) {
-            ownerName = company.name;
-            coatOfArms = company.logoUrl || null;
-            if (company.stateId) {
-                const s = stateByIdMap.get(company.stateId);
-                if (s) fallbackCoatOfArms = s.coatOfArmsUrl || null;
-            }
-         }
+        const company = companyMap.get(acc.id);
+        if (company) {
+          ownerName = company.name;
+          coatOfArms = company.logoUrl || null;
+          if (company.stateId) {
+            const s = stateByIdMap.get(company.stateId);
+            if (s) fallbackCoatOfArms = s.coatOfArmsUrl || null;
+          }
+        }
       }
       return { ownerName, coatOfArms: coatOfArms || fallbackCoatOfArms, fallbackCoatOfArms };
     };
@@ -697,7 +750,7 @@ export class EconomyService {
 
   private async resolveAccount(identifier: string): Promise<Account | null> {
     const cleanIdentifier = identifier.replace(/\D/g, '');
-    
+
     // 1. По номеру счета (20 цифр)
     const byAccNum = await this.accountRepository.findOne({
       where: { accountNumber: cleanIdentifier || identifier },
@@ -723,11 +776,11 @@ export class EconomyService {
 
   public async checkTreasuryAccess(playerUsername: string, entityId: string, entityType: string): Promise<boolean> {
     const usernameLower = playerUsername.toLowerCase();
-    console.log(`[checkTreasuryAccess] player=${usernameLower}, entityId=${entityId}, entityType=${entityType}`);
-    
+
+
     if (entityType === 'gold_reserve') {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(entityId);
-      console.log(`[checkTreasuryAccess] gold_reserve isUuid=${isUuid}`);
+
       if (!isUuid) return false;
       const state = await this.stateRepository.findOne({ where: { id: entityId } });
       if (!state) return false;
@@ -736,7 +789,7 @@ export class EconomyService {
 
     const cleanAccountNumber = entityId.replace(/\D/g, '');
     const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
-    console.log(`[checkTreasuryAccess] account found=${!!account}, type=${account?.type}, owner=${account?.ownerUsername}`);
+
     if (!account) return false;
 
     if (entityType === 'personal' || entityType === 'company') {
@@ -746,7 +799,7 @@ export class EconomyService {
     if (entityType === 'state' || entityType === 'state_reserve') {
       if (account.type !== 'treasury') return false;
       const state = await this.stateRepository.findOne({ where: { treasuryAccountNumber: account.accountNumber } });
-      console.log(`[checkTreasuryAccess] state found=${!!state}, stateLeader=${state?.leaderUsername}`);
+
       return state?.leaderUsername?.toLowerCase() === usernameLower;
     }
 
@@ -778,36 +831,49 @@ export class EconomyService {
     }
 
     if (targetStateId && entityType === 'gold_reserve') {
+      const itemCounts = new Map<string, number>();
       for (const item of items) {
-        let treasuryItem = await this.stateTreasuryItemRepository.findOne({ where: { stateId: targetStateId, minecraftItemId: item.itemId } });
-        if (treasuryItem) {
-          treasuryItem.quantity += item.count;
-        } else {
-          treasuryItem = this.stateTreasuryItemRepository.create({ stateId: targetStateId, minecraftItemId: item.itemId, quantity: item.count });
-        }
-        await this.stateTreasuryItemRepository.save(treasuryItem);
+        itemCounts.set(item.itemId, (itemCounts.get(item.itemId) || 0) + item.count);
       }
+      const itemIds = Array.from(itemCounts.keys());
+      
+      const existingItems = await this.stateTreasuryItemRepository.find({
+        where: { stateId: targetStateId, minecraftItemId: In(itemIds) }
+      });
+      const itemMap = new Map(existingItems.map(i => [i.minecraftItemId, i]));
+      
+      const toSave: any[] = [];
+      for (const [itemId, count] of itemCounts.entries()) {
+        let treasuryItem = itemMap.get(itemId);
+        if (treasuryItem) {
+          treasuryItem.quantity += count;
+        } else {
+          treasuryItem = this.stateTreasuryItemRepository.create({ stateId: targetStateId, minecraftItemId: itemId, quantity: count });
+        }
+        toSave.push(treasuryItem);
+      }
+      await this.stateTreasuryItemRepository.save(toSave);
       return true;
     } else if (targetAccountId) {
       const cleanAccountNumber = entityId.replace(/\D/g, '');
       const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
       if (!account) throw new BadRequestException('Счет не найден.');
-      
+
       const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
       if (!currency) throw new BadRequestException('Валюта счета не найдена.');
-      
+
       let depositedValue = 0;
       for (const item of items) {
         const val = ITEM_VALUES[item.itemId];
         if (val !== undefined) {
-           depositedValue += val * item.count;
+          depositedValue += val * item.count;
         } else if (currency) {
-           if (item.itemId === currency.minecraftItemId) depositedValue += 1 * item.count;
-           else if (item.itemId === currency.kopeckItemId) depositedValue += 0.01 * item.count;
-           else throw new BadRequestException(`Предмет ${item.itemId} не является валютой.`);
+          if (item.itemId === currency.minecraftItemId) depositedValue += 1 * item.count;
+          else if (item.itemId === currency.kopeckItemId) depositedValue += 0.01 * item.count;
+          else throw new BadRequestException(`Предмет ${item.itemId} не является валютой.`);
         }
       }
-      
+
       if (depositedValue > 0) {
         account.balance = Number(account.balance) + depositedValue;
         await this.accountRepository.save(account);
@@ -816,7 +882,7 @@ export class EconomyService {
       }
       return true;
     }
-    
+
     throw new BadRequestException('Неизвестный тип сейфа.');
   }
 
@@ -824,7 +890,7 @@ export class EconomyService {
     const hasAccess = await this.checkTreasuryAccess(playerUsername, entityId, entityType);
     if (!hasAccess) throw new BadRequestException('У вас нет доступа к этому счету.');
 
-    let itemsToReturn: { itemId: string; count: number; name?: string; enchantment?: string }[] = [];
+    const itemsToReturn: { itemId: string; count: number; name?: string; enchantment?: string }[] = [];
     let targetStateId: string | null = null;
     let targetAccountId: string | null = null;
 
@@ -856,19 +922,19 @@ export class EconomyService {
       const cleanAccountNumber = entityId.replace(/\D/g, '');
       const account = await this.accountRepository.findOne({ where: { accountNumber: cleanAccountNumber } });
       if (!account) throw new BadRequestException('Счет не найден.');
-      
+
       const requestedAmount = parseFloat(amount);
       if (isNaN(requestedAmount) || requestedAmount < 0.01) throw new BadRequestException('Минимальная сумма операции — 0.01.');
       if (Number(account.balance) < requestedAmount) throw new BadRequestException('Недостаточно средств на счету.');
-      
+
       account.balance = Number(account.balance) - requestedAmount;
       await this.accountRepository.save(account);
-      
+
       const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
       const kopeck = currency ? currency.kopeckItemId : 'minecraft:gold_nugget';
       const cName = currency ? currency.name : undefined;
       const cEnch = currency ? currency.minecraftEnchantment : undefined;
-      
+
       let tiers: any[] = [];
       if (kopeck === 'minecraft:gold_nugget') tiers = GOLD_TIERS;
       else if (kopeck === 'minecraft:diamond') tiers = DIAMOND_TIERS;
@@ -876,61 +942,61 @@ export class EconomyService {
       else if (kopeck === 'minecraft:netherite_scrap') tiers = NETHERITE_TIERS;
       let remaining = requestedAmount;
       if (currency && currency.minecraftItemId !== kopeck && ITEM_VALUES[currency.kopeckItemId] === undefined) {
-          // It's a custom currency. Give minecraftItemId for the integer part, and kopeck for the decimal part.
-          const mainCount = Math.floor(remaining);
-          const kopeckCount = Math.round((remaining - mainCount) * 100);
-          
-          if (mainCount > 0) {
-              let chunks = Math.floor(mainCount / 64);
-              let remainder = mainCount % 64;
-              for (let i = 0; i < chunks; i++) {
-                 itemsToReturn.push({ itemId: currency.minecraftItemId, count: 64, name: cName, enchantment: cEnch });
-              }
-              if (remainder > 0) {
-                 itemsToReturn.push({ itemId: currency.minecraftItemId, count: remainder, name: cName, enchantment: cEnch });
-              }
+        // It's a custom currency. Give minecraftItemId for the integer part, and kopeck for the decimal part.
+        const mainCount = Math.floor(remaining);
+        const kopeckCount = Math.round((remaining - mainCount) * 100);
+
+        if (mainCount > 0) {
+          const chunks = Math.floor(mainCount / 64);
+          const remainder = mainCount % 64;
+          for (let i = 0; i < chunks; i++) {
+            itemsToReturn.push({ itemId: currency.minecraftItemId, count: 64, name: cName, enchantment: cEnch });
           }
-          
-          if (kopeckCount > 0) {
-              let chunks = Math.floor(kopeckCount / 64);
-              let remainder = kopeckCount % 64;
-              for (let i = 0; i < chunks; i++) {
-                 itemsToReturn.push({ itemId: currency.kopeckItemId, count: 64, name: cName, enchantment: cEnch });
-              }
-              if (remainder > 0) {
-                 itemsToReturn.push({ itemId: currency.kopeckItemId, count: remainder, name: cName, enchantment: cEnch });
-              }
+          if (remainder > 0) {
+            itemsToReturn.push({ itemId: currency.minecraftItemId, count: remainder, name: cName, enchantment: cEnch });
           }
+        }
+
+        if (kopeckCount > 0) {
+          const chunks = Math.floor(kopeckCount / 64);
+          const remainder = kopeckCount % 64;
+          for (let i = 0; i < chunks; i++) {
+            itemsToReturn.push({ itemId: currency.kopeckItemId, count: 64, name: cName, enchantment: cEnch });
+          }
+          if (remainder > 0) {
+            itemsToReturn.push({ itemId: currency.kopeckItemId, count: remainder, name: cName, enchantment: cEnch });
+          }
+        }
       } else {
-          // Legacy tier behavior for standard items
-          for (const tier of tiers) {
-            if (remaining >= tier.val) {
-              const count = Math.floor(remaining / tier.val);
-              let chunks = Math.floor(count / 64);
-              let remainder = count % 64;
-              for (let i = 0; i < chunks; i++) {
-                 itemsToReturn.push({ itemId: tier.id, count: 64, name: cName, enchantment: cEnch });
-              }
-              if (remainder > 0) {
-                 itemsToReturn.push({ itemId: tier.id, count: remainder, name: cName, enchantment: cEnch });
-              }
-              remaining = remaining % tier.val;
-            }
-          }
-          
-          if (remaining > 0) {
-            let count = remaining;
-            let chunks = Math.floor(count / 64);
-            let remainder = count % 64;
+        // Legacy tier behavior for standard items
+        for (const tier of tiers) {
+          if (remaining >= tier.val) {
+            const count = Math.floor(remaining / tier.val);
+            const chunks = Math.floor(count / 64);
+            const remainder = count % 64;
             for (let i = 0; i < chunks; i++) {
-               itemsToReturn.push({ itemId: kopeck, count: 64, name: cName, enchantment: cEnch });
+              itemsToReturn.push({ itemId: tier.id, count: 64, name: cName, enchantment: cEnch });
             }
             if (remainder > 0) {
-               itemsToReturn.push({ itemId: kopeck, count: remainder, name: cName, enchantment: cEnch });
+              itemsToReturn.push({ itemId: tier.id, count: remainder, name: cName, enchantment: cEnch });
             }
+            remaining = remaining % tier.val;
           }
+        }
+
+        if (remaining > 0) {
+          const count = remaining;
+          const chunks = Math.floor(count / 64);
+          const remainder = count % 64;
+          for (let i = 0; i < chunks; i++) {
+            itemsToReturn.push({ itemId: kopeck, count: 64, name: cName, enchantment: cEnch });
+          }
+          if (remainder > 0) {
+            itemsToReturn.push({ itemId: kopeck, count: remainder, name: cName, enchantment: cEnch });
+          }
+        }
       }
-      
+
       return itemsToReturn;
     }
     throw new BadRequestException('Неизвестный тип сейфа.');
@@ -958,7 +1024,7 @@ export class EconomyService {
         return currency?.minecraftItemId || 'minecraft:paper';
       }
     }
-    
+
     return 'minecraft:paper';
   }
 }

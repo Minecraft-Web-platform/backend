@@ -14,10 +14,12 @@ import { NewsCategoryController } from './news-category.controller';
 import { NewsBlockService } from './news-blocks.service';
 import { NewsAdminController } from './news-admin.controller';
 import { UploadModule } from 'src/upload/upload.module';
+import { AutoNewsService } from './auto-news.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([News, NewsBlock, NewsCategory]), OwnJwtModule, UsersModule, UploadModule],
-  providers: [NewsService, NewsCategoryService, NewsBlockService],
+  providers: [NewsService, NewsCategoryService, NewsBlockService, AutoNewsService],
   controllers: [NewsController, NewsCategoryController, NewsAdminController],
+  exports: [NewsService, NewsCategoryService, AutoNewsService],
 })
 export class NewsModule {}

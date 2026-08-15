@@ -31,7 +31,7 @@ export class EventsService {
       .orWhere('event.targetUsername = :empty', { empty: '' })
       .orderBy('event.createdAt', 'DESC')
       .getMany();
-    console.log(`[EventsService] getUserEvents for ${username}: found ${events.length} events.`);
+
     return events;
   }
 

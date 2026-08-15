@@ -19,7 +19,7 @@ import {
   UpdateCityDto,
 } from './dto/states.dto';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
-import { AdminGuard } from '../auth/guards/is-admin.guard';
+
 import { AuthenticatedRequest } from '../auth/types/auth-request.type';
 
 @Controller('cities')

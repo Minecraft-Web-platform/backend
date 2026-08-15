@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CompanyService } from '../entities/company-service.entity';
 import { CompanyServiceSubItem } from '../entities/company-service-sub-item.entity';
 import { CompanyOrder } from '../entities/company-order.entity';
@@ -367,7 +367,8 @@ export class CompanyServicesService {
       throw new BadRequestException('Can only arbitrate DISPUTED orders');
     }
 
-    const isAdmin = username.toLowerCase() === 'admin';
+    const user = await this.userRepo.findOne({ where: { username_lower: username.toLowerCase() } });
+    const isAdmin = user?.isAdmin || false;
 
     if (order.isEscalatedToAdmin && !isAdmin) {
       throw new BadRequestException('This order has been escalated to an administrator');
@@ -434,7 +435,7 @@ export class CompanyServicesService {
          }
       }
 
-      let fineText = '';
+
       if (dto.finePercent && dto.finePercent > 0) {
         const percent = Math.min(dto.finePercent, 100);
         const fineAmount = Number(((order.totalPrice * percent) / 100).toFixed(2));
@@ -454,7 +455,7 @@ export class CompanyServicesService {
                  taxAmount: 0,
                  description: `Fine for order ${order.id}`,
              }));
-             fineText = ` (Fine: ${percent}% = ${fineAmount} ${currency.code})`;
+
           }
         }
       }
@@ -521,7 +522,10 @@ export class CompanyServicesService {
   public async getDisputedOrders(username: string): Promise<CompanyOrder[]> {
     const lower = username.toLowerCase();
     
-    if (lower === 'admin') {
+    const user = await this.userRepo.findOne({ where: { username_lower: lower } });
+    const isAdmin = user?.isAdmin || false;
+    
+    if (isAdmin) {
       return this.orderRepo.find({
         where: { status: CompanyOrderStatus.DISPUTED, isEscalatedToAdmin: true },
         relations: ['company', 'service', 'statusHistory'],
@@ -548,7 +552,7 @@ export class CompanyServicesService {
       where: {
         status: CompanyOrderStatus.DISPUTED,
         isEscalatedToAdmin: false,
-        companyId: require('typeorm').In(companyIds)
+        companyId: In(companyIds)
       },
       relations: ['company', 'service', 'statusHistory'],
       order: { createdAt: 'DESC' }
@@ -562,18 +566,18 @@ export class CompanyServicesService {
       { type: 'player', id: lower, label: 'Личный счет' }
     ];
     
-    const states = await this.stateRepo.find();
+    const states = await this.stateRepo.createQueryBuilder('state')
+      .where('LOWER(state.leaderUsername) = :lower OR LOWER(state.treasurerUsername) = :lower', { lower })
+      .getMany();
     for (const st of states) {
-      if (st.leaderUsername?.toLowerCase() === lower || st.treasurerUsername?.toLowerCase() === lower) {
-        identities.push({ type: 'state', id: st.id, label: `Казна ${st.name}` });
-      }
+      identities.push({ type: 'state', id: st.id, label: `Казна ${st.name}` });
     }
     
-    const companies = await this.companyRepo.find();
+    const companies = await this.companyRepo.createQueryBuilder('company')
+      .where('LOWER(company.ownerUsername) = :lower', { lower })
+      .getMany();
     for (const comp of companies) {
-      if (comp.ownerUsername?.toLowerCase() === lower) {
-        identities.push({ type: 'company', id: comp.id, label: `Счет компании ${comp.name}` });
-      }
+      identities.push({ type: 'company', id: comp.id, label: `Счет компании ${comp.name}` });
     }
     
     return identities;

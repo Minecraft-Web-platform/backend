@@ -11,12 +11,11 @@ import {
 import { CompanyServicesService } from '../services/company-services.service';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 import { AuthenticatedRequest } from '../../auth/types/auth-request.type';
-import { CompanyOrder } from '../entities/company-order.entity';
 import { CompanyOrderStatus } from '../entities/company-order-status.enum';
 
 @Controller('company-services')
 export class CompanyServicesController {
-  constructor(private readonly servicesService: CompanyServicesService) {}
+  constructor(private readonly servicesService: CompanyServicesService) { }
 
   @Get('identities')
   @UseGuards(AccessTokenGuard)

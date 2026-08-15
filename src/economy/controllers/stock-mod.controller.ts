@@ -4,6 +4,15 @@ import { CompaniesService } from '../services/companies.service';
 import { StatesService } from '../../states/states.service';
 import { EconomyService } from '../services/economy.service';
 import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
+import { 
+  CheckStatePermissionsDto, 
+  GetPortfolioDto, 
+  GetIdentitiesDto, 
+  GetCompaniesDto, 
+  WithdrawSharesDto, 
+  DepositSharesDto, 
+  BuySharesDto 
+} from '../dto/stock-mod.dto';
 
 @UseGuards(ModIpGuard)
 @Controller('stock-mod')
@@ -18,14 +27,14 @@ export class StockModController {
   @Get('permissions/state/:stateId')
   async checkStatePermissions(
     @Param('stateId') stateId: string,
-    @Query('playerUsername') playerUsername: string,
+    @Query() dto: CheckStatePermissionsDto,
   ) {
-    if (!playerUsername || !stateId) throw new BadRequestException('Missing parameters');
+    if (!dto.playerUsername || !stateId) throw new BadRequestException('Missing parameters');
     try {
       const state = await this.statesService.getStateById(stateId);
       if (!state) return { hasAccess: false };
       
-      const lower = playerUsername.toLowerCase();
+      const lower = dto.playerUsername.toLowerCase();
       // For now, assuming leader and treasurer. Admins might need user fetch, but this satisfies basic needs
       const hasAccess = state.leaderUsername?.toLowerCase() === lower || state.treasurerUsername?.toLowerCase() === lower;
       return { hasAccess, stateName: state.name };
@@ -36,26 +45,23 @@ export class StockModController {
 
   @Get('portfolio')
   async getPortfolio(
-    @Query('playerUsername') playerUsername: string,
-    @Query('entityId') entityId: string,
-    @Query('entityType') entityType: string,
-    @Query('exchangeStateId') exchangeStateId: string,
+    @Query() dto: GetPortfolioDto,
   ) {
-    if (!playerUsername || !entityId || !entityType) {
+    if (!dto.playerUsername || !dto.entityId || !dto.entityType) {
       throw new BadRequestException('Missing parameters');
     }
     
-    const portfolio = await this.stockService.getModPortfolio(entityId, entityType as any);
-    if (exchangeStateId) {
-      return portfolio.filter(s => s.exchangeStateId === exchangeStateId);
+    const portfolio = await this.stockService.getModPortfolio(dto.entityId, dto.entityType as any);
+    if (dto.exchangeStateId) {
+      return portfolio.filter(s => s.exchangeStateId === dto.exchangeStateId);
     }
     return portfolio;
   }
 
   @Get('identities')
-  async getIdentities(@Query('playerUsername') playerUsername: string) {
-    if (!playerUsername) throw new BadRequestException('Missing parameter');
-    const lower = playerUsername.toLowerCase();
+  async getIdentities(@Query() dto: GetIdentitiesDto) {
+    if (!dto.playerUsername) throw new BadRequestException('Missing parameter');
+    const lower = dto.playerUsername.toLowerCase();
     
     const identities = [
       { type: 'player', id: lower, label: 'Личный счет' }
@@ -79,10 +85,10 @@ export class StockModController {
   }
 
   @Get('companies')
-  async getCompanies(@Query('exchangeStateId') exchangeStateId: string) {
+  async getCompanies(@Query() dto: GetCompaniesDto) {
     let companies = await this.stockService.getPublicCompanies();
-    if (exchangeStateId) {
-      companies = companies.filter(c => c.exchangeStateId === exchangeStateId);
+    if (dto.exchangeStateId) {
+      companies = companies.filter(c => c.exchangeStateId === dto.exchangeStateId);
     }
     const result: any[] = [];
     for (const comp of companies) {
@@ -100,26 +106,24 @@ export class StockModController {
 
   @Post('withdraw')
   async withdraw(
-    @Body('playerUsername') playerUsername: string,
-    @Body('entityId') entityId: string,
-    @Body('entityType') entityType: string,
-    @Body('companyId') companyId: string,
-    @Body('sharesCount') sharesCount: string,
+    @Body() dto: WithdrawSharesDto
   ) {
-    if (!playerUsername || !entityId || !entityType || !companyId || !sharesCount) {
+    if (!dto.playerUsername || !dto.entityId || !dto.entityType || !dto.companyId || !dto.sharesCount) {
       throw new BadRequestException('Missing parameters');
     }
-    const count = parseInt(sharesCount, 10);
+    const count = parseInt(dto.sharesCount, 10);
     if (isNaN(count) || count <= 0) throw new BadRequestException('Invalid shares count');
 
-    const certificate = await this.stockService.withdrawShares(entityId, entityType as any, companyId, count);
-    const company = await this.companiesService.getCompanyById(companyId);
+    const certificate = await this.stockService.withdrawShares(dto.entityId, dto.entityType as any, dto.companyId, count);
+    const company = await this.companiesService.getCompanyById(dto.companyId);
     let exchangeName = 'Независимая биржа';
     if (company.exchangeStateId) {
       try {
         const state = await this.statesService.getStateById(company.exchangeStateId);
         exchangeName = state.name;
-      } catch (e) {}
+      } catch (e: unknown) {
+        console.error('Failed to get state for exchangeName:', e);
+      }
     }
 
     const title = `Акции: ${company.name}`;
@@ -154,16 +158,13 @@ export class StockModController {
 
   @Post('deposit')
   async deposit(
-    @Body('playerUsername') playerUsername: string,
-    @Body('entityId') entityId: string, // account/entity to deposit to
-    @Body('entityType') entityType: string,
-    @Body('certificateId') certificateId: string,
+    @Body() dto: DepositSharesDto
   ) {
-    if (!playerUsername || !entityId || !entityType || !certificateId) {
+    if (!dto.playerUsername || !dto.entityId || !dto.entityType || !dto.certificateId) {
       throw new BadRequestException('Missing parameters');
     }
     
-    const success = await this.stockService.depositShares(entityId, entityType as any, certificateId);
+    const success = await this.stockService.depositShares(dto.entityId, dto.entityType as any, dto.certificateId);
     return { success };
   }
 }

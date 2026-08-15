@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Param, Query, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, BadRequestException, UseGuards } from '@nestjs/common';
 import { EconomyService } from '../services/economy.service';
 import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
 
 import { CurrenciesService } from '../services/currencies.service';
+import { CheckPermissionsDto, GetAccountsDto, DepositDto, WithdrawDto, GetAccountCurrencyDto } from '../dto/treasury-mod.dto';
 
 @UseGuards(ModIpGuard)
 @Controller('treasury-mod')
@@ -10,69 +11,69 @@ export class TreasuryModController {
   constructor(
     private readonly economyService: EconomyService,
     private readonly currenciesService: CurrenciesService,
-  ) {}
+  ) { }
 
   @Get('permissions')
   async checkPermissions(
-    @Query('playerUsername') playerUsername: string,
-    @Query('entityId') entityId: string,
-    @Query('entityType') entityType: string,
+    @Query() dto: CheckPermissionsDto
   ) {
-    if (!playerUsername || !entityId || !entityType) {
+    if (!dto.playerUsername || !dto.entityId || !dto.entityType) {
       throw new BadRequestException('Missing parameters');
     }
-    const hasAccess = await this.economyService.checkTreasuryAccess(playerUsername, entityId, entityType);
+
+    const hasAccess = await this.economyService.checkTreasuryAccess(dto.playerUsername, dto.entityId, dto.entityType);
+
     return { hasAccess };
   }
 
   @Get('accounts')
-  async getAccounts(@Query('playerUsername') playerUsername: string) {
-    if (!playerUsername) {
+  async getAccounts(@Query() dto: GetAccountsDto) {
+    if (!dto.playerUsername) {
       throw new BadRequestException('Missing parameters');
     }
-    const accounts = await this.economyService.getModAccounts(playerUsername);
+
+    const accounts = await this.economyService.getModAccounts(dto.playerUsername);
     const rates = await this.currenciesService.getAllCurrencies();
+
     return { accounts, rates };
   }
 
   @Post('deposit')
   async deposit(
-    @Body('playerUsername') playerUsername: string,
-    @Body('entityId') entityId: string,
-    @Body('entityType') entityType: string,
-    @Body('amount') amount: string,
-    @Body('items') items: { itemId: string; count: number }[],
+    @Body() dto: DepositDto
   ) {
-    if (!playerUsername || !entityId || !entityType || !items) {
+    if (!dto.playerUsername || !dto.entityId || !dto.entityType || !dto.items) {
       throw new BadRequestException('Missing parameters');
     }
-    const success = await this.economyService.processDeposit(playerUsername, entityId, entityType, amount, items);
-    return { success: true };
+
+    const success = await this.economyService.processDeposit(dto.playerUsername, dto.entityId, dto.entityType, dto.amount, dto.items);
+
+    return { success };
   }
 
   @Post('withdraw')
   async withdraw(
-    @Body('playerUsername') playerUsername: string,
-    @Body('entityId') entityId: string,
-    @Body('entityType') entityType: string,
-    @Body('amount') amount: string,
+    @Body() dto: WithdrawDto
   ) {
-    if (!playerUsername || !entityId || !entityType) {
+    if (!dto.playerUsername || !dto.entityId || !dto.entityType) {
       throw new BadRequestException('Missing parameters');
     }
-    const items = await this.economyService.processWithdraw(playerUsername, entityId, entityType, amount);
+
+    const items = await this.economyService.processWithdraw(dto.playerUsername, dto.entityId, dto.entityType, dto.amount);
+
     return { success: true, items };
   }
 
   @Get('account-currency')
   async getAccountCurrency(
-    @Query('entityId') entityId: string,
-    @Query('entityType') entityType: string,
+    @Query() dto: GetAccountCurrencyDto
   ) {
-    if (!entityId || !entityType) {
+    if (!dto.entityId || !dto.entityType) {
       throw new BadRequestException('Missing parameters');
     }
-    const itemId = await this.economyService.getAccountCurrencyItem(entityId, entityType);
+
+    const itemId = await this.economyService.getAccountCurrencyItem(dto.entityId, dto.entityType);
+
     return { itemId };
   }
 }
