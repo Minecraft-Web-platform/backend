@@ -17,7 +17,6 @@ import { UploadService } from 'src/upload/upload.service';
 
 @Injectable()
 export class NewsService implements INewsService {
-
   constructor(
     @InjectRepository(News)
     private readonly newsRepo: Repository<News>,

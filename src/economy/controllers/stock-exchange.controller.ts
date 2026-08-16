@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { StockExchangeService } from '../services/stock-exchange.service';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 import { AuthenticatedRequest } from '../../auth/types/auth-request.type';
@@ -38,10 +30,7 @@ export class StockExchangeController {
   }
 
   @Get('ipo-requests/state/:stateId')
-  async getIpoRequests(
-    @Req() req: AuthenticatedRequest,
-    @Param('stateId') stateId: string,
-  ) {
+  async getIpoRequests(@Req() req: AuthenticatedRequest, @Param('stateId') stateId: string) {
     return this.stockExchangeService.getIpoRequests(stateId, req.user.username_lower);
   }
 
@@ -61,13 +50,7 @@ export class StockExchangeController {
     @Body() body: { count: number; buyerType?: 'player' | 'state' | 'company'; buyerId?: string },
   ) {
     const username = req.user.username_lower;
-    return this.stockExchangeService.buyShares(
-      username,
-      companyId,
-      body.count,
-      body.buyerType,
-      body.buyerId,
-    );
+    return this.stockExchangeService.buyShares(username, companyId, body.count, body.buyerType, body.buyerId);
   }
 
   @Post(':companyId/sell')
@@ -77,13 +60,7 @@ export class StockExchangeController {
     @Body() body: { count: number; sellerType?: 'player' | 'state' | 'company'; sellerId?: string },
   ) {
     const username = req.user.username_lower;
-    return this.stockExchangeService.sellShares(
-      username,
-      companyId,
-      body.count,
-      body.sellerType,
-      body.sellerId,
-    );
+    return this.stockExchangeService.sellShares(username, companyId, body.count, body.sellerType, body.sellerId);
   }
 
   @Post(':companyId/dividends')
@@ -93,11 +70,7 @@ export class StockExchangeController {
     @Body() body: { totalAmount: number },
   ) {
     const username = req.user.username_lower;
-    return this.stockExchangeService.payDividends(
-      username,
-      companyId,
-      body.totalAmount,
-    );
+    return this.stockExchangeService.payDividends(username, companyId, body.totalAmount);
   }
 
   @Get(':companyId/history')
@@ -112,10 +85,6 @@ export class StockExchangeController {
     @Body() body: { newPrice: number },
   ) {
     const username = req.user.username_lower;
-    return this.stockExchangeService.changeCompanySharePrice(
-      username,
-      companyId,
-      body.newPrice,
-    );
+    return this.stockExchangeService.changeCompanySharePrice(username, companyId, body.newPrice);
   }
 }

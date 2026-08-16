@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { CompaniesService } from '../services/companies.service';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 import { AuthenticatedRequest } from '../../auth/types/auth-request.type';

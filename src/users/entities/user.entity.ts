@@ -2,6 +2,7 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColum
 import { ConfirmationCode } from './confirmation-code.entity';
 import { CityEntity } from '../../states/entities/city.entity';
 import { StateEntity } from '../../states/entities/state.entity';
+import { UserAchievement } from '../../achievements/entities/user-achievement.entity';
 
 export type UserDataField = {
   password: string;
@@ -73,4 +74,7 @@ export class User {
     cascade: true,
   })
   codes?: ConfirmationCode[];
+
+  @OneToMany(() => UserAchievement, (ua) => ua.user)
+  userAchievements?: UserAchievement[];
 }

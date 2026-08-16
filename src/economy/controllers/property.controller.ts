@@ -27,16 +27,12 @@ export class PropertyController {
 
   @Post()
   createProperty(@Body() dto: CreatePropertyDto, @Request() req) {
-    const username = req.user.username_lower; 
+    const username = req.user.username_lower;
     return this.propertyService.createProperty(username, dto);
   }
 
   @Post(':id/sell')
-  listPropertyForSale(
-    @Param('id') id: string,
-    @Body('price') price: number,
-    @Request() req,
-  ) {
+  listPropertyForSale(@Param('id') id: string, @Body('price') price: number, @Request() req) {
     const username = req.user.username_lower;
     return this.propertyService.listPropertyForSale(username, id, price);
   }

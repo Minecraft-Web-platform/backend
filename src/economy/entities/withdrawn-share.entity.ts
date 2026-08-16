@@ -1,10 +1,4 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('economy_withdrawn_shares')
 export class WithdrawnShare {
@@ -23,7 +17,7 @@ export class WithdrawnShare {
 
   @Column({ type: 'varchar', length: 255 })
   issuedBy: string; // кто вывел акции (username_lower)
-  
+
   @Column({ type: 'varchar', length: 20, default: 'player' })
   issuedByType: 'player' | 'state' | 'company';
 

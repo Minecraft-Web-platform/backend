@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Currency } from '../entities/currency.entity';
@@ -69,32 +64,23 @@ export class CurrenciesService {
         throw new NotFoundException('Государство не найдено');
       }
       if (state.leaderUsername !== username.toLowerCase()) {
-        throw new ForbiddenException(
-          'Только правитель государства может создавать национальную валюту',
-        );
+        throw new ForbiddenException('Только правитель государства может создавать национальную валюту');
       }
       if (!state.treasuryAccountNumber) {
-        throw new BadRequestException(
-          'Сначала необходимо учредить Национальный банк государства (счёт казны)!',
-        );
+        throw new BadRequestException('Сначала необходимо учредить Национальный банк государства (счёт казны)!');
       }
       const existingStateCur = await this.currencyRepository.findOne({
         where: { stateId: dto.stateId },
       });
       if (existingStateCur) {
-        throw new BadRequestException(
-          'У этого государства уже выпущена национальная валюта: ' +
-            existingStateCur.code,
-        );
+        throw new BadRequestException('У этого государства уже выпущена национальная валюта: ' + existingStateCur.code);
       }
     }
 
     const mainItem = dto.minecraftItemId || 'createdeco:gold_coin';
     const kopeckItem = dto.kopeckItemId || 'createdeco:copper_coin';
     if (mainItem === kopeckItem) {
-      throw new BadRequestException(
-        'Основная и разменная монета не могут быть одинаковым предметом',
-      );
+      throw new BadRequestException('Основная и разменная монета не могут быть одинаковым предметом');
     }
 
     const currency = this.currencyRepository.create({
@@ -138,11 +124,7 @@ export class CurrenciesService {
     return recalculated;
   }
 
-  public async issueCurrency(
-    username: string,
-    currencyId: string,
-    amount: number,
-  ): Promise<Currency> {
+  public async issueCurrency(username: string, currencyId: string, amount: number): Promise<Currency> {
     if (amount <= 0) {
       throw new BadRequestException('Сумма эмиссии должна быть больше 0');
     }
@@ -159,9 +141,7 @@ export class CurrenciesService {
         where: { id: currency.stateId },
       });
       if (state && state.leaderUsername !== username.toLowerCase()) {
-        throw new ForbiddenException(
-          'Только правитель может эмитировать национальную валюту',
-        );
+        throw new ForbiddenException('Только правитель может эмитировать национальную валюту');
       }
     }
 
@@ -186,9 +166,7 @@ export class CurrenciesService {
 
     const updated = await this.recalculateExchangeRate(currency);
     if (oldRate > 0) {
-      updated.rateChange24h = Number(
-        (((updated.exchangeRate - oldRate) / oldRate) * 100).toFixed(2),
-      );
+      updated.rateChange24h = Number((((updated.exchangeRate - oldRate) / oldRate) * 100).toFixed(2));
       await this.currencyRepository.save(updated);
     }
 
@@ -206,9 +184,7 @@ export class CurrenciesService {
       });
       if (state) {
         const citizensCount = state.citizens?.length || 0;
-        const activeCitiesCount =
-          state.cities?.filter((c) => (c.citizens?.length || 0) >= 1).length ||
-          0;
+        const activeCitiesCount = state.cities?.filter((c) => (c.citizens?.length || 0) >= 1).length || 0;
 
         const taxRate = state.playerToCompanyTransferFee || 5;
         if (taxRate <= 10) {
@@ -224,9 +200,7 @@ export class CurrenciesService {
     }
 
     if (currency.createdAt) {
-      const ageInDays =
-        (Date.now() - new Date(currency.createdAt).getTime()) /
-        (1000 * 60 * 60 * 24);
+      const ageInDays = (Date.now() - new Date(currency.createdAt).getTime()) / (1000 * 60 * 60 * 24);
       const ageWeeks = Math.floor(Math.max(0, ageInDays) / 7);
       basePower += ageWeeks * 50;
     }

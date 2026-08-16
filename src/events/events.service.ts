@@ -25,7 +25,8 @@ export class EventsService {
   async getUserEvents(username: string): Promise<EventEntity[]> {
     // Find events specifically targeted to this user OR global events (targetUsername is null and stateId/cityId is null).
     // For a more advanced version, we could fetch events for the user's city/state too.
-    const events = await this.eventRepo.createQueryBuilder('event')
+    const events = await this.eventRepo
+      .createQueryBuilder('event')
       .where('event.targetUsername = :username', { username: username.toLowerCase() })
       .orWhere('event.targetUsername IS NULL')
       .orWhere('event.targetUsername = :empty', { empty: '' })

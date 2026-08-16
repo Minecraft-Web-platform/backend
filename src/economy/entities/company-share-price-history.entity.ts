@@ -1,10 +1,4 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('economy_company_share_price_history')
 export class CompanySharePriceHistory {
@@ -17,7 +11,6 @@ export class CompanySharePriceHistory {
 
   @Column({ type: 'float' })
   price: number;
-
 
   @CreateDateColumn()
   createdAt: Date;

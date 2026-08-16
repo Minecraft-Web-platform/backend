@@ -56,7 +56,7 @@ export class UsersService implements UsersServiceContract {
 
     const ext = file.originalname ? `.${file.originalname.split('.').pop()}` : `.${file.mimetype.split('/')[1]}`;
     const customFileName = `${user.uuid}${ext}`;
-    
+
     const avatarUrl = await this.uploadService.uploadImage(file, 'avatars', customFileName);
 
     await this.update(user.username_lower, { avatarUrl });

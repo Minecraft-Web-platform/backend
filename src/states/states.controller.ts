@@ -12,12 +12,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { StatesService } from './states.service';
-import {
-  CreateDecreeDto,
-  CreateStateDto,
-  SetDiplomacyDto,
-  UpdateStateDto,
-} from './dto/states.dto';
+import { CreateDecreeDto, CreateStateDto, SetDiplomacyDto, UpdateStateDto } from './dto/states.dto';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 import { AdminGuard } from '../auth/guards/is-admin.guard';
 import { AuthenticatedRequest } from '../auth/types/auth-request.type';
@@ -44,11 +39,7 @@ export class StatesController {
 
   @Put(':id')
   @UseGuards(AccessTokenGuard)
-  async updateState(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') id: string,
-    @Body() dto: UpdateStateDto,
-  ) {
+  async updateState(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateStateDto) {
     return this.statesService.updateState(id, dto, req.user.username_lower);
   }
 
@@ -88,11 +79,7 @@ export class StatesController {
 
   @Post(':id/decrees')
   @UseGuards(AccessTokenGuard)
-  async createDecree(
-    @Param('id') id: string,
-    @Body() dto: CreateDecreeDto,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async createDecree(@Param('id') id: string, @Body() dto: CreateDecreeDto, @Req() req: AuthenticatedRequest) {
     const authorUsername = req.user?.username_lower || 'Leader';
     return this.statesService.createDecree(id, dto, authorUsername);
   }
@@ -112,11 +99,7 @@ export class StatesController {
   // --- National Bank ---
   @Post(':id/bank')
   @UseGuards(AccessTokenGuard)
-  async createNationalBank(
-    @Param('id') id: string,
-    @Body() dto: { name?: string },
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async createNationalBank(@Param('id') id: string, @Body() dto: { name?: string }, @Req() req: AuthenticatedRequest) {
     const username = req.user?.username_lower || '';
     return this.statesService.createNationalBank(id, username, dto?.name);
   }
@@ -129,10 +112,7 @@ export class StatesController {
 
   @Post(':id/treasury/digitize')
   @UseGuards(AccessTokenGuard)
-  async digitizeTreasury(
-    @Param('id') id: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async digitizeTreasury(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     const state = await this.statesService.getStateById(id);
     if (!state.leaderUsername || state.leaderUsername.toLowerCase() !== req.user?.username_lower) {
       throw new ForbiddenException('Только лидер государства может оцифровать казну');

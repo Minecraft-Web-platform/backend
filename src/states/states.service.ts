@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StateEntity } from './entities/state.entity';
@@ -15,6 +21,7 @@ import { Account } from '../economy/entities/account.entity';
 import { MinecraftRconService } from '../minecraft-rcon/minecraft-rcon.service';
 import { EventsService } from '../events/events.service';
 import { AutoNewsService } from '../news/auto-news.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   CreateCityDto,
@@ -58,6 +65,7 @@ export class StatesService {
     private readonly rconService: MinecraftRconService,
     private readonly eventsService: EventsService,
     private readonly autoNewsService: AutoNewsService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // --- States ---
@@ -91,31 +99,28 @@ export class StatesService {
         { stateId: savedState.id },
       );
     }
-    
+
     // Auto-news about state creation
     if (creatorUsername) {
       await this.autoNewsService.publishStateCreatedNews(savedState.name, creatorUsername);
+      
+      this.eventEmitter.emit('state.created', {
+        initiatorUsername: creatorUsername,
+        stateId: savedState.id,
+      });
     }
-    
+
     return savedState;
   }
 
-  async updateState(
-    id: string,
-    dto: UpdateStateDto,
-    username?: string,
-  ): Promise<StateEntity> {
+  async updateState(id: string, dto: UpdateStateDto, username?: string): Promise<StateEntity> {
     const state = await this.getStateById(id);
     if (username) {
       const user = await this.userRepo.findOne({
         where: { username_lower: username.toLowerCase() },
       });
-      const isLeader =
-        state.leaderUsername &&
-        state.leaderUsername.toLowerCase() === username.toLowerCase();
-      const isTreasurer =
-        state.treasurerUsername &&
-        state.treasurerUsername.toLowerCase() === username.toLowerCase();
+      const isLeader = state.leaderUsername && state.leaderUsername.toLowerCase() === username.toLowerCase();
+      const isTreasurer = state.treasurerUsername && state.treasurerUsername.toLowerCase() === username.toLowerCase();
 
       if (!isLeader && !isTreasurer && !user?.isAdmin) {
         throw new ForbiddenException(
@@ -138,33 +143,24 @@ export class StatesService {
         throw new BadRequestException('Комиссия биржи должна быть от 0 до 100%');
       }
     }
-    Object.assign(state, dto);
+    Object.keys(dto).forEach((key) => {
+      if (dto[key] !== undefined) {
+        state[key] = dto[key];
+      }
+    });
     return this.stateRepo.save(state);
   }
 
-  async createNationalBank(
-    stateId: string,
-    username: string,
-    bankName?: string,
-  ): Promise<Account> {
+  async createNationalBank(stateId: string, username: string, bankName?: string): Promise<Account> {
     const state = await this.getStateById(stateId);
-    if (
-      !state.leaderUsername ||
-      state.leaderUsername.toLowerCase() !== username.toLowerCase()
-    ) {
-      throw new ForbiddenException(
-        'Только правитель государства может учреждать Национальный банк',
-      );
+    if (!state.leaderUsername || state.leaderUsername.toLowerCase() !== username.toLowerCase()) {
+      throw new ForbiddenException('Только правитель государства может учреждать Национальный банк');
     }
     if (state.treasuryAccountNumber) {
-      throw new BadRequestException(
-        'Национальный банк этого государства уже учрежден!',
-      );
+      throw new BadRequestException('Национальный банк этого государства уже учрежден!');
     }
 
-    const accountNumber =
-      '40817' +
-      Math.floor(100000000000000 + Math.random() * 900000000000000).toString();
+    const accountNumber = '40817' + Math.floor(100000000000000 + Math.random() * 900000000000000).toString();
 
     const account = this.accountRepo.create({
       accountNumber,
@@ -223,11 +219,8 @@ export class StatesService {
     const user = await this.userRepo.findOne({
       where: { username_lower: username.toLowerCase() },
     });
-    
-    if (
-      (!state.leaderUsername || state.leaderUsername.toLowerCase() !== username.toLowerCase()) &&
-      !user?.isAdmin
-    ) {
+
+    if ((!state.leaderUsername || state.leaderUsername.toLowerCase() !== username.toLowerCase()) && !user?.isAdmin) {
       throw new ForbiddenException('Только президент или администратор могут назначать роли');
     }
 
@@ -272,10 +265,7 @@ export class StatesService {
     return city;
   }
 
-  async createCity(
-    dto: CreateCityDto,
-    creatorUsername?: string,
-  ): Promise<CityEntity> {
+  async createCity(dto: CreateCityDto, creatorUsername?: string): Promise<CityEntity> {
     const existing = await this.cityRepo
       .createQueryBuilder('city')
       .where('LOWER(city.name) = LOWER(:name)', { name: dto.name })
@@ -290,25 +280,28 @@ export class StatesService {
       ...dto,
       mayorUsername: mayor,
     });
-    return this.cityRepo.save(city);
+    
+    const saved = await this.cityRepo.save(city);
+
+    if (creatorUsername) {
+      this.eventEmitter.emit('city.created', {
+        initiatorUsername: creatorUsername,
+        cityId: saved.id,
+      });
+    }
+
+    return saved;
   }
 
-  async updateCity(
-    id: string,
-    dto: UpdateCityDto,
-    username?: string,
-  ): Promise<CityEntity> {
+  async updateCity(id: string, dto: UpdateCityDto, username?: string): Promise<CityEntity> {
     const city = await this.getCityById(id);
     if (username) {
       const user = await this.userRepo.findOne({
         where: { username_lower: username.toLowerCase() },
       });
-      const isMayor =
-        city.mayorUsername &&
-        city.mayorUsername.toLowerCase() === username.toLowerCase();
+      const isMayor = city.mayorUsername && city.mayorUsername.toLowerCase() === username.toLowerCase();
       const isPresident =
-        city.state?.leaderUsername &&
-        city.state.leaderUsername.toLowerCase() === username.toLowerCase();
+        city.state?.leaderUsername && city.state.leaderUsername.toLowerCase() === username.toLowerCase();
       if (!isMayor && !isPresident && !user?.isAdmin) {
         throw new ForbiddenException(
           'Только мэр города, президент государства или администратор могут редактировать город',
@@ -316,7 +309,11 @@ export class StatesService {
       }
     }
 
-    Object.assign(city, dto);
+    Object.keys(dto).forEach((key) => {
+      if (dto[key] !== undefined) {
+        city[key] = dto[key];
+      }
+    });
     return this.cityRepo.save(city);
   }
 
@@ -327,13 +324,14 @@ export class StatesService {
         where: { username_lower: username.toLowerCase() },
       });
       const isMayor = city.mayorUsername && city.mayorUsername.toLowerCase() === username.toLowerCase();
-      const isPresident = city.state?.leaderUsername && city.state.leaderUsername.toLowerCase() === username.toLowerCase();
-      
+      const isPresident =
+        city.state?.leaderUsername && city.state.leaderUsername.toLowerCase() === username.toLowerCase();
+
       if (!isMayor && !isPresident && !user?.isAdmin) {
         throw new ForbiddenException('Только мэр, президент или администратор могут удалить город');
       }
     }
-    
+
     const result = await this.cityRepo.delete(id);
     if (result.affected === 0) {
       throw new NotFoundException('Город не найден');
@@ -345,7 +343,7 @@ export class StatesService {
     if (!city.stateId) {
       throw new BadRequestException('Город не принадлежит ни одному государству');
     }
-    
+
     const state = await this.getStateById(city.stateId);
     if (state.leaderUsername?.toLowerCase() !== username.toLowerCase()) {
       const user = await this.userRepo.findOne({ where: { username_lower: username.toLowerCase() } });
@@ -355,10 +353,7 @@ export class StatesService {
     }
 
     // Снимаем столицу с других городов
-    await this.cityRepo.update(
-      { stateId: city.stateId },
-      { isCapital: false }
-    );
+    await this.cityRepo.update({ stateId: city.stateId }, { isCapital: false });
 
     city.isCapital = true;
     return this.cityRepo.save(city);
@@ -367,7 +362,7 @@ export class StatesService {
   async addCityImage(id: string, imageUrl: string, username: string): Promise<CityEntity> {
     const city = await this.getCityById(id);
     this.checkCityPermission(city, username);
-    
+
     if (!city.images) city.images = [];
     if (!city.images.includes(imageUrl)) {
       city.images.push(imageUrl);
@@ -378,9 +373,9 @@ export class StatesService {
   async removeCityImage(id: string, imageUrl: string, username: string): Promise<CityEntity> {
     const city = await this.getCityById(id);
     this.checkCityPermission(city, username);
-    
+
     if (city.images) {
-      city.images = city.images.filter(img => img !== imageUrl);
+      city.images = city.images.filter((img) => img !== imageUrl);
     }
     return this.cityRepo.save(city);
   }
@@ -390,8 +385,9 @@ export class StatesService {
       where: { username_lower: username.toLowerCase() },
     });
     const isMayor = city.mayorUsername && city.mayorUsername.toLowerCase() === username.toLowerCase();
-    const isPresident = city.state?.leaderUsername && city.state.leaderUsername.toLowerCase() === username.toLowerCase();
-    
+    const isPresident =
+      city.state?.leaderUsername && city.state.leaderUsername.toLowerCase() === username.toLowerCase();
+
     if (!isMayor && !isPresident && !user?.isAdmin) {
       throw new ForbiddenException('Только мэр, президент или администратор могут управлять городом');
     }
@@ -453,7 +449,10 @@ export class StatesService {
     });
   }
 
-  async createCitizenshipRequest(username: string, dto: CreateCitizenshipRequestDto): Promise<CitizenshipRequestEntity> {
+  async createCitizenshipRequest(
+    username: string,
+    dto: CreateCitizenshipRequestDto,
+  ): Promise<CitizenshipRequestEntity> {
     const city = await this.getCityById(dto.cityId);
     const user = await this.userRepo.findOne({
       where: { username_lower: username.toLowerCase() },
@@ -467,20 +466,13 @@ export class StatesService {
       const currentCity = await this.cityRepo.findOne({
         where: { id: user.cityId },
       });
-      if (
-        currentCity?.mayorUsername &&
-        currentCity.mayorUsername.toLowerCase() === username.toLowerCase()
-      ) {
+      if (currentCity?.mayorUsername && currentCity.mayorUsername.toLowerCase() === username.toLowerCase()) {
         throw new BadRequestException(
           'Вы являетесь мэром своего города и не можете переехать. Сначала сложите полномочия мэра.',
         );
       }
 
-      if (
-        user.stateId &&
-        city.stateId &&
-        user.stateId !== city.stateId
-      ) {
+      if (user.stateId && city.stateId && user.stateId !== city.stateId) {
         throw new BadRequestException(
           'Вы не можете переехать в город другого государства. Заявка на переезд возможна только между городами в пределах одного государства.',
         );
@@ -504,19 +496,23 @@ export class StatesService {
     return this.requestRepo.save(req);
   }
 
-  async reviewCitizenshipRequest(requestId: string, dto: ReviewCitizenshipRequestDto, reviewerUsername: string): Promise<CitizenshipRequestEntity> {
+  async reviewCitizenshipRequest(
+    requestId: string,
+    dto: ReviewCitizenshipRequestDto,
+    reviewerUsername: string,
+  ): Promise<CitizenshipRequestEntity> {
     const req = await this.requestRepo.findOne({ where: { id: requestId } });
     if (!req) {
       throw new NotFoundException('Заявка не найдена');
     }
 
     const city = await this.getCityById(req.cityId);
-    
+
     // Check permissions
     const reviewerUser = await this.userRepo.findOne({
       where: { username_lower: reviewerUsername.toLowerCase() },
     });
-    
+
     const isAdmin = reviewerUser?.isAdmin || reviewerUser?.role === 'admin';
     const isMayor = city.mayorUsername?.toLowerCase() === reviewerUsername.toLowerCase();
     const isPresident = city.state?.leaderUsername?.toLowerCase() === reviewerUsername.toLowerCase();
@@ -535,6 +531,8 @@ export class StatesService {
         user.cityId = city.id;
         user.stateId = city.stateId;
         await this.userRepo.save(user);
+
+        this.eventEmitter.emit('city.joined', { initiatorUsername: user.username_lower });
 
         const otherRequests = await this.requestRepo.find({
           where: { username: req.username, status: 'pending' },
@@ -562,10 +560,7 @@ export class StatesService {
       throw new BadRequestException('Вы не являетесь жителем этого города');
     }
     const city = await this.getCityById(cityId);
-    if (
-      city.mayorUsername &&
-      city.mayorUsername.toLowerCase() === username.toLowerCase()
-    ) {
+    if (city.mayorUsername && city.mayorUsername.toLowerCase() === username.toLowerCase()) {
       await this.resignMayor(cityId, username);
     }
 
@@ -648,7 +643,11 @@ export class StatesService {
     return saved;
   }
 
-  async nominateCandidate(electionId: string, username: string, dto: NominateCandidateDto): Promise<ElectionCandidateEntity> {
+  async nominateCandidate(
+    electionId: string,
+    username: string,
+    dto: NominateCandidateDto,
+  ): Promise<ElectionCandidateEntity> {
     const el = await this.getElectionById(electionId);
     const existing = await this.candidateRepo.findOne({
       where: { electionId, username },
@@ -733,6 +732,12 @@ export class StatesService {
     cand.votesCount = (cand.votesCount || 0) + 1;
     await this.candidateRepo.save(cand);
 
+    if (el.targetType === 'state') {
+      this.eventEmitter.emit('election.president.voted', { initiatorUsername: voterUsername.toLowerCase() });
+    } else if (el.targetType === 'city') {
+      this.eventEmitter.emit('election.mayor.voted', { initiatorUsername: voterUsername.toLowerCase() });
+    }
+
     return { message: 'Ваш голос учтен!' };
   }
 
@@ -775,6 +780,8 @@ export class StatesService {
           cityId: city.id,
           type: 'election',
         });
+
+        this.eventEmitter.emit('election.mayor.won', { initiatorUsername: winnerUsername });
       } else if (el.targetType === 'state') {
         const state = await this.getStateById(el.targetId);
         state.leaderUsername = winnerUsername;
@@ -786,6 +793,8 @@ export class StatesService {
           stateId: state.id,
           type: 'election',
         });
+
+        this.eventEmitter.emit('election.president.won', { initiatorUsername: winnerUsername });
       }
     } else {
       // No candidates or votes
@@ -812,7 +821,8 @@ export class StatesService {
   @Cron(CronExpression.EVERY_MINUTE)
   async handleElectionPhases() {
     const now = new Date();
-    const toVotingElections = await this.electionRepo.createQueryBuilder('election')
+    const toVotingElections = await this.electionRepo
+      .createQueryBuilder('election')
       .where('election.status = :status', { status: 'nomination' })
       .andWhere('election.startsAt <= :now', { now })
       .getMany();
@@ -826,7 +836,8 @@ export class StatesService {
   @Cron(CronExpression.EVERY_MINUTE)
   async handleEndedElections() {
     const now = new Date();
-    const endedElections = await this.electionRepo.createQueryBuilder('election')
+    const endedElections = await this.electionRepo
+      .createQueryBuilder('election')
       .where('election.status != :status', { status: 'completed' })
       .andWhere('election.endsAt <= :now', { now })
       .getMany();
@@ -877,7 +888,10 @@ export class StatesService {
     return this.treasuryRepo.save(item);
   }
 
-  async digitizeTreasury(stateId: string, accountType: string = 'state_reserve'): Promise<{ message: string; items: any[] }> {
+  async digitizeTreasury(
+    stateId: string,
+    accountType: string = 'state_reserve',
+  ): Promise<{ message: string; items: any[] }> {
     const response = await this.rconService.executeCommand(`safe digitize ${stateId} ${accountType}`);
     try {
       const parsed = JSON.parse(response);
@@ -901,7 +915,7 @@ export class StatesService {
                 stateId,
                 minecraftItemId: item.id,
                 quantity: qty,
-              })
+              }),
             );
           }
         }
@@ -913,21 +927,30 @@ export class StatesService {
     }
   }
 
-  async withdrawTreasury(stateId: string, accountType: string, minecraftItemId: string, quantity: number): Promise<{ message: string }> {
+  async withdrawTreasury(
+    stateId: string,
+    accountType: string,
+    minecraftItemId: string,
+    quantity: number,
+  ): Promise<{ message: string }> {
     // Сначала проверяем баланс в БД
     const item = await this.treasuryRepo.findOne({
       where: { stateId, minecraftItemId },
     });
-    
+
     if (!item || item.quantity < quantity) {
       throw new BadRequestException('Недостаточно предметов в казне государства');
     }
 
-    const response = await this.rconService.executeCommand(`safe withdraw ${stateId} ${accountType} ${minecraftItemId} ${quantity}`);
+    const response = await this.rconService.executeCommand(
+      `safe withdraw ${stateId} ${accountType} ${minecraftItemId} ${quantity}`,
+    );
     try {
       const parsed = JSON.parse(response);
       if (!parsed.success) {
-        throw new BadRequestException(parsed.reason || 'Сейф переполнен или выгружен из памяти сервера (подойдите к нему в игре).');
+        throw new BadRequestException(
+          parsed.reason || 'Сейф переполнен или выгружен из памяти сервера (подойдите к нему в игре).',
+        );
       }
 
       // Списываем баланс только если RCON вернул success

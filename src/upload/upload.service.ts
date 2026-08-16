@@ -6,7 +6,7 @@ import * as path from 'path';
 @Injectable()
 export class UploadService {
   private s3: S3Client;
-  
+
   // Hardcoding based on the user's new consolidated bucket name
   private bucketName = 'khroniki-kraya';
   private publicUrl = 'https://pub-15916e7fa9d140d697cc7c68ff3a9943.r2.dev';

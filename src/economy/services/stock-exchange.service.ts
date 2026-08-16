@@ -1,9 +1,5 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
@@ -36,6 +32,7 @@ export class StockExchangeService {
     private readonly ipoRequestRepository: Repository<IpoRequest>,
     private readonly economyService: EconomyService,
     private readonly autoNewsService: AutoNewsService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   public async getPublicCompanies(): Promise<Company[]> {
@@ -47,7 +44,7 @@ export class StockExchangeService {
 
   public async getMyPortfolio(username: string): Promise<CompanyShare[]> {
     const identities: any[] = [{ ownerType: 'player', ownerId: username.toLowerCase() }];
-    
+
     const states = await this.stateRepository.find({ where: { treasurerUsername: username.toLowerCase() } });
     for (const st of states) {
       identities.push({ ownerType: 'state', ownerId: st.id });
@@ -75,9 +72,7 @@ export class StockExchangeService {
       throw new NotFoundException('Компания не найдена');
     }
     if (company.ownerUsername !== username.toLowerCase()) {
-      throw new ForbiddenException(
-        'Только владелец компании может провести IPO',
-      );
+      throw new ForbiddenException('Только владелец компании может провести IPO');
     }
     if (company.isPublic) {
       throw new BadRequestException('Компания уже выведена на биржу');
@@ -108,7 +103,9 @@ export class StockExchangeService {
 
     const ipoFee = exchangeState.ipoFee || 0;
     if (companyAccount.balance < ipoFee) {
-      throw new BadRequestException(`На коммерческом счете компании недостаточно средств для оплаты пошлины (${ipoFee} ${companyAccount.currencyCode})`);
+      throw new BadRequestException(
+        `На коммерческом счете компании недостаточно средств для оплаты пошлины (${ipoFee} ${companyAccount.currencyCode})`,
+      );
     }
 
     const request = this.ipoRequestRepository.create({
@@ -144,7 +141,7 @@ export class StockExchangeService {
   public async reviewIpoRequest(
     requestId: string,
     action: 'approved' | 'rejected',
-    username: string
+    username: string,
   ): Promise<IpoRequest> {
     const request = await this.ipoRequestRepository.findOne({ where: { id: requestId } });
     if (!request) throw new NotFoundException('Заявка не найдена');
@@ -166,7 +163,7 @@ export class StockExchangeService {
 
     const company = await this.companyRepository.findOne({ where: { id: request.companyId } });
     if (!company) throw new NotFoundException('Компания не найдена');
-    
+
     const companyAccount = await this.accountRepository.findOne({ where: { id: company.accountId as string } });
     if (!companyAccount) throw new NotFoundException('Коммерческий счет компании не найден');
 
@@ -183,7 +180,9 @@ export class StockExchangeService {
           description: `Оплата пошлины за листинг на бирже государства ${state.name}`,
         });
       } catch (err) {
-        throw new BadRequestException(`Не удалось списать пошлину за IPO. Возможно, на счету компании недостаточно средств. Ошибка: ${err.message}`);
+        throw new BadRequestException(
+          `Не удалось списать пошлину за IPO. Возможно, на счету компании недостаточно средств. Ошибка: ${err.message}`,
+        );
       }
     }
 
@@ -206,12 +205,14 @@ export class StockExchangeService {
     const savedRequest = await this.ipoRequestRepository.save(request);
 
     // Auto-news about IPO
-    await this.autoNewsService.publishIpoNews(
-      company.name,
-      request.totalShares,
-      request.initialPrice,
-      username,
-    );
+    await this.autoNewsService.publishIpoNews(company.name, request.totalShares, request.initialPrice, username);
+
+    this.eventEmitter.emit('company.ipo', { initiatorUsername: username.toLowerCase() });
+
+    const userCompanies = await this.companyRepository.find({ where: { ownerUsername: username.toLowerCase(), isPublic: true } });
+    if (userCompanies.length === 5) {
+      this.eventEmitter.emit('company.ipo.fifth', { initiatorUsername: username.toLowerCase() });
+    }
 
     return savedRequest;
   }
@@ -232,17 +233,17 @@ export class StockExchangeService {
 
     // Права доступа
     if (buyerType === 'state') {
-       const state = await this.stateRepository.findOne({ where: { id: buyerId } });
-       if (!state || state.treasurerUsername?.toLowerCase() !== username.toLowerCase()) {
-         throw new BadRequestException('У вас нет прав казначея этого государства');
-       }
+      const state = await this.stateRepository.findOne({ where: { id: buyerId } });
+      if (!state || state.treasurerUsername?.toLowerCase() !== username.toLowerCase()) {
+        throw new BadRequestException('У вас нет прав казначея этого государства');
+      }
     } else if (buyerType === 'company') {
-       const comp = await this.companyRepository.findOne({ where: { id: buyerId } });
-       if (!comp || comp.ownerUsername?.toLowerCase() !== username.toLowerCase()) {
-         throw new BadRequestException('У вас нет прав владельца этой компании');
-       }
+      const comp = await this.companyRepository.findOne({ where: { id: buyerId } });
+      if (!comp || comp.ownerUsername?.toLowerCase() !== username.toLowerCase()) {
+        throw new BadRequestException('У вас нет прав владельца этой компании');
+      }
     } else if (buyerType === 'player' && buyerId !== username.toLowerCase()) {
-       throw new BadRequestException('Неверный ID покупателя');
+      throw new BadRequestException('Неверный ID покупателя');
     }
 
     const company = await this.companyRepository.findOne({
@@ -341,11 +342,7 @@ export class StockExchangeService {
     } else {
       const totalCount = shareEntry.sharesCount + count;
       shareEntry.boughtAtPrice = Number(
-        (
-          (shareEntry.boughtAtPrice * shareEntry.sharesCount +
-            executionPrice * count) /
-          totalCount
-        ).toFixed(2),
+        ((shareEntry.boughtAtPrice * shareEntry.sharesCount + executionPrice * count) / totalCount).toFixed(2),
       );
       shareEntry.sharesCount = totalCount;
     }
@@ -355,9 +352,7 @@ export class StockExchangeService {
     // Пересчет цены акции (при покупке цена растет)
     company.sharePrice = newPrice;
     company.availableShares -= count;
-    company.priceChange24h = Number(
-      (((company.sharePrice - oldPrice) / oldPrice) * 100).toFixed(2),
-    );
+    company.priceChange24h = Number((((company.sharePrice - oldPrice) / oldPrice) * 100).toFixed(2));
 
     await this.companyRepository.save(company);
 
@@ -366,6 +361,10 @@ export class StockExchangeService {
       price: company.sharePrice,
     });
     await this.sharePriceHistoryRepository.save(history);
+
+    if (buyerType === 'player') {
+      this.eventEmitter.emit('shares.bought', { initiatorUsername: username.toLowerCase() });
+    }
 
     return { company, portfolio: shareEntry };
   }
@@ -386,17 +385,17 @@ export class StockExchangeService {
 
     // Права доступа
     if (sellerType === 'state') {
-       const state = await this.stateRepository.findOne({ where: { id: sellerId } });
-       if (!state || state.treasurerUsername?.toLowerCase() !== username.toLowerCase()) {
-         throw new BadRequestException('У вас нет прав казначея этого государства');
-       }
+      const state = await this.stateRepository.findOne({ where: { id: sellerId } });
+      if (!state || state.treasurerUsername?.toLowerCase() !== username.toLowerCase()) {
+        throw new BadRequestException('У вас нет прав казначея этого государства');
+      }
     } else if (sellerType === 'company') {
-       const comp = await this.companyRepository.findOne({ where: { id: sellerId } });
-       if (!comp || comp.ownerUsername?.toLowerCase() !== username.toLowerCase()) {
-         throw new BadRequestException('У вас нет прав владельца этой компании');
-       }
+      const comp = await this.companyRepository.findOne({ where: { id: sellerId } });
+      if (!comp || comp.ownerUsername?.toLowerCase() !== username.toLowerCase()) {
+        throw new BadRequestException('У вас нет прав владельца этой компании');
+      }
     } else if (sellerType === 'player' && sellerId !== username.toLowerCase()) {
-       throw new BadRequestException('Неверный ID продавца');
+      throw new BadRequestException('Неверный ID продавца');
     }
 
     const company = await this.companyRepository.findOne({
@@ -490,9 +489,7 @@ export class StockExchangeService {
     // При продаже цена акций снижается
     company.sharePrice = newPrice;
     company.availableShares += count;
-    company.priceChange24h = Number(
-      (((company.sharePrice - oldPrice) / oldPrice) * 100).toFixed(2),
-    );
+    company.priceChange24h = Number((((company.sharePrice - oldPrice) / oldPrice) * 100).toFixed(2));
 
     await this.companyRepository.save(company);
 
@@ -518,9 +515,7 @@ export class StockExchangeService {
       where: { id: companyId },
     });
     if (!company || company.ownerUsername !== username.toLowerCase()) {
-      throw new ForbiddenException(
-        'Только владелец компании может выплачивать дивиденды',
-      );
+      throw new ForbiddenException('Только владелец компании может выплачивать дивиденды');
     }
 
     let companyAccount: Account | null = null;
@@ -530,9 +525,7 @@ export class StockExchangeService {
       });
     }
     if (!companyAccount || companyAccount.balance < totalAmount) {
-      throw new BadRequestException(
-        'Недостаточно средств на счете компании для выплаты дивидендов',
-      );
+      throw new BadRequestException('Недостаточно средств на счете компании для выплаты дивидендов');
     }
 
     const allShares = await this.shareRepository.find({
@@ -642,79 +635,91 @@ export class StockExchangeService {
     const shares = await this.shareRepository.find({
       where: identities,
     });
-    
-    const companyIds = shares.map(s => s.companyId);
+
+    const companyIds = shares.map((s) => s.companyId);
     let companies: Company[] = [];
     if (companyIds.length > 0) {
-      companies = await this.companyRepository.createQueryBuilder('c')
+      companies = await this.companyRepository
+        .createQueryBuilder('c')
         .where('c.id IN (:...companyIds)', { companyIds })
         .getMany();
     }
-    
-    return shares.map(s => {
-      const comp = companies.find(c => c.id === s.companyId);
+
+    return shares.map((s) => {
+      const comp = companies.find((c) => c.id === s.companyId);
       return {
         ...s,
         companyName: comp?.name || 'Неизвестная компания',
-        exchangeStateId: comp?.exchangeStateId
+        exchangeStateId: comp?.exchangeStateId,
       };
     });
   }
 
-  public async withdrawShares(entityId: string, entityType: 'player' | 'state' | 'company', companyId: string, count: number): Promise<WithdrawnShare> {
+  public async withdrawShares(
+    entityId: string,
+    entityType: 'player' | 'state' | 'company',
+    companyId: string,
+    count: number,
+  ): Promise<WithdrawnShare> {
     const lowerId = entityId.toLowerCase();
     const shareRecord = await this.shareRepository.findOne({
-      where: { ownerType: entityType, ownerId: lowerId, companyId }
+      where: { ownerType: entityType, ownerId: lowerId, companyId },
     });
-    
+
     if (!shareRecord || shareRecord.sharesCount < count) {
       throw new BadRequestException('Недостаточно акций для вывода');
     }
-    
+
     shareRecord.sharesCount -= count;
     await this.shareRepository.save(shareRecord);
-    
+
     const withdrawn = this.withdrawnShareRepository.create({
       companyId,
       sharesCount: count,
       boughtAtPrice: shareRecord.boughtAtPrice,
       issuedBy: lowerId,
-      issuedByType: entityType
+      issuedByType: entityType,
     });
-    
+
     return this.withdrawnShareRepository.save(withdrawn);
   }
 
-  public async depositShares(entityId: string, entityType: 'player' | 'state' | 'company', certificateId: string): Promise<boolean> {
+  public async depositShares(
+    entityId: string,
+    entityType: 'player' | 'state' | 'company',
+    certificateId: string,
+  ): Promise<boolean> {
     const withdrawn = await this.withdrawnShareRepository.findOne({ where: { id: certificateId } });
     if (!withdrawn) {
       throw new BadRequestException('Сертификат недействителен или уже погашен');
     }
-    
+
     const lowerId = entityId.toLowerCase();
-    
+
     let shareRecord = await this.shareRepository.findOne({
-      where: { ownerType: entityType, ownerId: lowerId, companyId: withdrawn.companyId }
+      where: { ownerType: entityType, ownerId: lowerId, companyId: withdrawn.companyId },
     });
-    
+
     if (!shareRecord) {
       shareRecord = this.shareRepository.create({
         ownerType: entityType,
         ownerId: lowerId,
         companyId: withdrawn.companyId,
         sharesCount: withdrawn.sharesCount,
-        boughtAtPrice: withdrawn.boughtAtPrice
+        boughtAtPrice: withdrawn.boughtAtPrice,
       });
     } else {
       const totalCount = shareRecord.sharesCount + withdrawn.sharesCount;
-      const avgPrice = ((shareRecord.sharesCount * shareRecord.boughtAtPrice) + (withdrawn.sharesCount * withdrawn.boughtAtPrice)) / totalCount;
+      const avgPrice =
+        (shareRecord.sharesCount * shareRecord.boughtAtPrice + withdrawn.sharesCount * withdrawn.boughtAtPrice) /
+        totalCount;
       shareRecord.sharesCount = totalCount;
       shareRecord.boughtAtPrice = avgPrice;
     }
-    
+
     await this.shareRepository.save(shareRecord);
     await this.withdrawnShareRepository.remove(withdrawn);
-    
+
     return true;
   }
 }

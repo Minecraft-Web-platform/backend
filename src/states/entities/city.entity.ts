@@ -42,7 +42,6 @@ export class CityEntity {
   @Column({ type: 'varchar', nullable: true })
   treasuryAccountNumber?: string;
 
-
   @OneToMany(() => CitizenshipRequestEntity, (req) => req.city, { cascade: true })
   citizenshipRequests?: CitizenshipRequestEntity[];
 }

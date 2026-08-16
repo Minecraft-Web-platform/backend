@@ -4,14 +4,14 @@ import { CompaniesService } from '../services/companies.service';
 import { StatesService } from '../../states/states.service';
 import { EconomyService } from '../services/economy.service';
 import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
-import { 
-  CheckStatePermissionsDto, 
-  GetPortfolioDto, 
-  GetIdentitiesDto, 
-  GetCompaniesDto, 
-  WithdrawSharesDto, 
-  DepositSharesDto, 
-  BuySharesDto 
+import {
+  CheckStatePermissionsDto,
+  GetPortfolioDto,
+  GetIdentitiesDto,
+  GetCompaniesDto,
+  WithdrawSharesDto,
+  DepositSharesDto,
+  BuySharesDto,
 } from '../dto/stock-mod.dto';
 
 @UseGuards(ModIpGuard)
@@ -25,18 +25,16 @@ export class StockModController {
   ) {}
 
   @Get('permissions/state/:stateId')
-  async checkStatePermissions(
-    @Param('stateId') stateId: string,
-    @Query() dto: CheckStatePermissionsDto,
-  ) {
+  async checkStatePermissions(@Param('stateId') stateId: string, @Query() dto: CheckStatePermissionsDto) {
     if (!dto.playerUsername || !stateId) throw new BadRequestException('Missing parameters');
     try {
       const state = await this.statesService.getStateById(stateId);
       if (!state) return { hasAccess: false };
-      
+
       const lower = dto.playerUsername.toLowerCase();
       // For now, assuming leader and treasurer. Admins might need user fetch, but this satisfies basic needs
-      const hasAccess = state.leaderUsername?.toLowerCase() === lower || state.treasurerUsername?.toLowerCase() === lower;
+      const hasAccess =
+        state.leaderUsername?.toLowerCase() === lower || state.treasurerUsername?.toLowerCase() === lower;
       return { hasAccess, stateName: state.name };
     } catch (e) {
       return { hasAccess: false };
@@ -44,16 +42,14 @@ export class StockModController {
   }
 
   @Get('portfolio')
-  async getPortfolio(
-    @Query() dto: GetPortfolioDto,
-  ) {
+  async getPortfolio(@Query() dto: GetPortfolioDto) {
     if (!dto.playerUsername || !dto.entityId || !dto.entityType) {
       throw new BadRequestException('Missing parameters');
     }
-    
+
     const portfolio = await this.stockService.getModPortfolio(dto.entityId, dto.entityType as any);
     if (dto.exchangeStateId) {
-      return portfolio.filter(s => s.exchangeStateId === dto.exchangeStateId);
+      return portfolio.filter((s) => s.exchangeStateId === dto.exchangeStateId);
     }
     return portfolio;
   }
@@ -62,25 +58,23 @@ export class StockModController {
   async getIdentities(@Query() dto: GetIdentitiesDto) {
     if (!dto.playerUsername) throw new BadRequestException('Missing parameter');
     const lower = dto.playerUsername.toLowerCase();
-    
-    const identities = [
-      { type: 'player', id: lower, label: 'Личный счет' }
-    ];
-    
+
+    const identities = [{ type: 'player', id: lower, label: 'Личный счет' }];
+
     const states = await this.statesService.getAllStates();
     for (const st of states) {
       if (st.leaderUsername?.toLowerCase() === lower || st.treasurerUsername?.toLowerCase() === lower) {
         identities.push({ type: 'state', id: st.id, label: `Казна ${st.name}` });
       }
     }
-    
+
     const companies = await this.companiesService.getAllCompanies();
     for (const comp of companies) {
       if (comp.ownerUsername?.toLowerCase() === lower) {
         identities.push({ type: 'company', id: comp.id, label: `Счет компании ${comp.name}` });
       }
     }
-    
+
     return identities;
   }
 
@@ -88,13 +82,13 @@ export class StockModController {
   async getCompanies(@Query() dto: GetCompaniesDto) {
     let companies = await this.stockService.getPublicCompanies();
     if (dto.exchangeStateId) {
-      companies = companies.filter(c => c.exchangeStateId === dto.exchangeStateId);
+      companies = companies.filter((c) => c.exchangeStateId === dto.exchangeStateId);
     }
     const result: any[] = [];
     for (const comp of companies) {
       const history = await this.stockService.getCompanySharePriceHistory(comp.id);
-      const last9 = history.slice(-9).map(h => h.price);
-      let currencyItem = "minecraft:gold_nugget";
+      const last9 = history.slice(-9).map((h) => h.price);
+      let currencyItem = 'minecraft:gold_nugget';
       if (comp.exchangeStateId) {
         const item = await this.economyService.getAccountCurrencyItem(comp.exchangeStateId, 'gold_reserve');
         if (item) currencyItem = item;
@@ -105,16 +99,19 @@ export class StockModController {
   }
 
   @Post('withdraw')
-  async withdraw(
-    @Body() dto: WithdrawSharesDto
-  ) {
+  async withdraw(@Body() dto: WithdrawSharesDto) {
     if (!dto.playerUsername || !dto.entityId || !dto.entityType || !dto.companyId || !dto.sharesCount) {
       throw new BadRequestException('Missing parameters');
     }
     const count = parseInt(dto.sharesCount, 10);
     if (isNaN(count) || count <= 0) throw new BadRequestException('Invalid shares count');
 
-    const certificate = await this.stockService.withdrawShares(dto.entityId, dto.entityType as any, dto.companyId, count);
+    const certificate = await this.stockService.withdrawShares(
+      dto.entityId,
+      dto.entityType as any,
+      dto.companyId,
+      count,
+    );
     const company = await this.companiesService.getCompanyById(dto.companyId);
     let exchangeName = 'Независимая биржа';
     if (company.exchangeStateId) {
@@ -129,10 +126,10 @@ export class StockModController {
     const title = `Акции: ${company.name}`;
     const author = 'Admin';
     const dateStr = new Date().toLocaleDateString('ru-RU');
-    
+
     // NBT format for Written Book in Minecraft 1.20+
     const pageText = JSON.stringify({
-      text: `Сертификат на акции\n\nКомпания: ${company.name}\nБиржа: ${exchangeName}\nКоличество акций: ${certificate.sharesCount} шт.\n\nДата выдачи: ${dateStr}\n\nID:\n${certificate.id}`
+      text: `Сертификат на акции\n\nКомпания: ${company.name}\nБиржа: ${exchangeName}\nКоличество акций: ${certificate.sharesCount} шт.\n\nДата выдачи: ${dateStr}\n\nID:\n${certificate.id}`,
     });
 
     const item = {
@@ -145,25 +142,23 @@ export class StockModController {
         CompanyShare: {
           certificateId: certificate.id,
           companyId: company.id,
-          sharesCount: certificate.sharesCount
-        }
-      }
+          sharesCount: certificate.sharesCount,
+        },
+      },
     };
-    
-    return { 
-      success: true, 
-      item
+
+    return {
+      success: true,
+      item,
     };
   }
 
   @Post('deposit')
-  async deposit(
-    @Body() dto: DepositSharesDto
-  ) {
+  async deposit(@Body() dto: DepositSharesDto) {
     if (!dto.playerUsername || !dto.entityId || !dto.entityType || !dto.certificateId) {
       throw new BadRequestException('Missing parameters');
     }
-    
+
     const success = await this.stockService.depositShares(dto.entityId, dto.entityType as any, dto.certificateId);
     return { success };
   }

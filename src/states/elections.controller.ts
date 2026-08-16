@@ -1,19 +1,6 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { StatesService } from './states.service';
-import {
-  CreateElectionDto,
-  NominateCandidateDto,
-  VoteDto,
-} from './dto/states.dto';
+import { CreateElectionDto, NominateCandidateDto, VoteDto } from './dto/states.dto';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 import { AdminGuard } from '../auth/guards/is-admin.guard';
 import { AuthenticatedRequest } from '../auth/types/auth-request.type';
@@ -23,10 +10,7 @@ export class ElectionsController {
   constructor(private readonly statesService: StatesService) {}
 
   @Get()
-  async getAllElections(
-    @Query('targetType') targetType?: string,
-    @Query('targetId') targetId?: string,
-  ) {
+  async getAllElections(@Query('targetType') targetType?: string, @Query('targetId') targetId?: string) {
     return this.statesService.getAllElections(targetType, targetId);
   }
 
@@ -54,11 +38,7 @@ export class ElectionsController {
 
   @Post(':id/vote')
   @UseGuards(AccessTokenGuard)
-  async voteInElection(
-    @Param('id') id: string,
-    @Body() dto: VoteDto,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async voteInElection(@Param('id') id: string, @Body() dto: VoteDto, @Req() req: AuthenticatedRequest) {
     const username = req.user?.username_lower || 'Voter';
     return this.statesService.voteInElection(id, username, dto);
   }

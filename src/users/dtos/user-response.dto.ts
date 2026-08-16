@@ -7,6 +7,7 @@ export class UserResponseDto {
   public email: string | null;
   public emailIsConfirmed: boolean;
   public avatar_img: string | null;
+  public lastLoginDate: string;
   public registrationDate: string;
   public cityId: string | null;
   public stateId: string | null;
@@ -28,6 +29,7 @@ export class UserResponseDto {
     this.email = user.email;
     this.emailIsConfirmed = user.emailIsConfirmed;
     this.avatar_img = user.avatarUrl;
+    this.lastLoginDate = user.data.last_authenticated_date;
     this.registrationDate = user.data.registration_date;
     this.cityId = user.cityId || null;
     this.stateId = user.stateId || null;

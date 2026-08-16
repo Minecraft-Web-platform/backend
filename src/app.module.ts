@@ -12,9 +12,11 @@ import { MinecraftRconModule } from './minecraft-rcon/minecraft-rcon.module';
 import { StatesModule } from './states/states.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventsModule } from './events/events.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 import { EconomyModule } from './economy/economy.module';
 import { UploadModule } from './upload/upload.module';
+import { AchievementsModule } from './achievements/achievements.module';
 
 @Module({
   imports: [
@@ -23,6 +25,9 @@ import { UploadModule } from './upload/upload.module';
       envFilePath: '.env',
     }),
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot({
+      wildcard: true,
+    }),
     UsersModule,
     DatabaseModule,
     OwnJwtModule,
@@ -36,6 +41,7 @@ import { UploadModule } from './upload/upload.module';
     EconomyModule,
     EventsModule,
     UploadModule,
+    AchievementsModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

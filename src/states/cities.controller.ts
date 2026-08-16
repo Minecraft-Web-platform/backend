@@ -38,29 +38,19 @@ export class CitiesController {
 
   @Post()
   @UseGuards(AccessTokenGuard)
-  async createCity(
-    @Body() dto: CreateCityDto,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async createCity(@Body() dto: CreateCityDto, @Req() req: AuthenticatedRequest) {
     return this.statesService.createCity(dto, req.user?.username_lower);
   }
 
   @Put(':id')
   @UseGuards(AccessTokenGuard)
-  async updateCity(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') id: string,
-    @Body() dto: UpdateCityDto,
-  ) {
+  async updateCity(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateCityDto) {
     return this.statesService.updateCity(id, dto, req.user?.username_lower);
   }
 
   @Delete(':id')
   @UseGuards(AccessTokenGuard)
-  async deleteCity(
-    @Param('id') id: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async deleteCity(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.statesService.deleteCity(id, req.user?.username_lower);
   }
 
@@ -75,30 +65,19 @@ export class CitiesController {
 
   @Post(':id/capital')
   @UseGuards(AccessTokenGuard)
-  async setCapital(
-    @Param('id') id: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async setCapital(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.statesService.setCityCapital(id, req.user?.username_lower);
   }
 
   @Post(':id/images')
   @UseGuards(AccessTokenGuard)
-  async addImage(
-    @Param('id') id: string,
-    @Body('imageUrl') imageUrl: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async addImage(@Param('id') id: string, @Body('imageUrl') imageUrl: string, @Req() req: AuthenticatedRequest) {
     return this.statesService.addCityImage(id, imageUrl, req.user?.username_lower);
   }
 
   @Delete(':id/images')
   @UseGuards(AccessTokenGuard)
-  async removeImage(
-    @Param('id') id: string,
-    @Body('imageUrl') imageUrl: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async removeImage(@Param('id') id: string, @Body('imageUrl') imageUrl: string, @Req() req: AuthenticatedRequest) {
     return this.statesService.removeCityImage(id, imageUrl, req.user?.username_lower);
   }
 
@@ -138,10 +117,7 @@ export class CitiesController {
 
   @Post(':id/leave')
   @UseGuards(AccessTokenGuard)
-  async leaveCity(
-    @Param('id') id: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  async leaveCity(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.statesService.leaveCity(id, req.user?.username_lower);
   }
 }

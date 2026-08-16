@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { EconomyService } from '../services/economy.service';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 import { AuthenticatedRequest } from '../../auth/types/auth-request.type';
@@ -42,28 +32,19 @@ export class EconomyController {
   }
 
   @Post('cards')
-  async issueCard(
-    @Req() req: AuthenticatedRequest,
-    @Body() body: { accountId: string },
-  ) {
+  async issueCard(@Req() req: AuthenticatedRequest, @Body() body: { accountId: string }) {
     const username = req.user.username_lower;
     return this.economyService.issueCard(username, body.accountId);
   }
 
   @Patch('cards/:id/toggle-block')
-  async toggleBlockCard(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') cardId: string,
-  ) {
+  async toggleBlockCard(@Req() req: AuthenticatedRequest, @Param('id') cardId: string) {
     const username = req.user.username_lower;
     return this.economyService.toggleBlockCard(username, cardId);
   }
 
   @Delete('cards/:id')
-  async deleteCard(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') cardId: string,
-  ) {
+  async deleteCard(@Req() req: AuthenticatedRequest, @Param('id') cardId: string) {
     const username = req.user.username_lower;
     return this.economyService.deleteCard(username, cardId);
   }

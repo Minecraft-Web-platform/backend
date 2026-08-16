@@ -43,7 +43,6 @@ export class ModsService {
   }
 
   private async listMods(prefix: string): Promise<ModItem[]> {
-
     const res = await this.s3.send(new ListObjectsV2Command({ Bucket: this.bucketData.name, Prefix: prefix }));
 
     if (!res.Contents) return [];

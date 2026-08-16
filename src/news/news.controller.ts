@@ -31,7 +31,7 @@ export class NewsController {
     private readonly newsService: NewsService,
     private readonly usersService: UsersService,
     private readonly categoryService: NewsCategoryService,
-  ) { }
+  ) {}
 
   @UseGuards(AccessTokenGuard)
   @Post('image')
@@ -52,7 +52,7 @@ export class NewsController {
     }
 
     if (!actor.email || !actor.emailIsConfirmed) {
-      throw new ForbiddenException('Сначала подтверди свою почту!')
+      throw new ForbiddenException('Сначала подтверди свою почту!');
     }
 
     const category = await this.categoryService.findOne(dto.categoryId);

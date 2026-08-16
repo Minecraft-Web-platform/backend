@@ -1,12 +1,4 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Account } from './account.entity';
 
 @Entity('credit-cards')
@@ -38,7 +30,7 @@ export class CreditCard {
   createdAt: Date;
 
   bankName?: string;
-  
+
   @Column({ nullable: true })
   backgroundImageUrl?: string;
 }

@@ -16,9 +16,7 @@ export class ModIpGuard implements CanActivate {
     }
 
     let clientIp =
-      request.headers['x-forwarded-for']?.toString().split(',')[0].trim() ||
-      request.socket.remoteAddress ||
-      request.ip;
+      request.headers['x-forwarded-for']?.toString().split(',')[0].trim() || request.socket.remoteAddress || request.ip;
 
     if (clientIp && clientIp.startsWith('::ffff:')) {
       clientIp = clientIp.replace('::ffff:', '');
@@ -28,7 +26,10 @@ export class ModIpGuard implements CanActivate {
 
     const isLocalhost =
       (allowedIp === '127.0.0.1' || allowedIp === 'localhost') &&
-      (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === 'localhost' || (clientIp && (clientIp.startsWith('172.19.') || clientIp.startsWith('172.'))));
+      (clientIp === '127.0.0.1' ||
+        clientIp === '::1' ||
+        clientIp === 'localhost' ||
+        (clientIp && (clientIp.startsWith('172.19.') || clientIp.startsWith('172.'))));
 
     if (clientIp !== allowedIp && !isLocalhost) {
       this.logger.warn(`Blocked unauthorized mod request from IP: ${clientIp} (Expected: ${allowedIp})`);

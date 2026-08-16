@@ -57,7 +57,8 @@ export class PropertyService {
     const acc = await this.accountRepo.findOne({
       where: { accountNumber: state.treasuryAccountNumber, currencyCode },
     });
-    if (!acc) throw new NotFoundException(`Казначейский счет государства ${stateId} в валюте ${currencyCode} не найден`);
+    if (!acc)
+      throw new NotFoundException(`Казначейский счет государства ${stateId} в валюте ${currencyCode} не найден`);
     return acc;
   }
 
@@ -106,13 +107,13 @@ export class PropertyService {
 
   async listPropertyForSale(ownerUsername: string, propertyId: string, price: number): Promise<Property> {
     if (price <= 0) throw new BadRequestException('Цена должна быть больше 0');
-    
+
     const prop = await this.propertyRepo.findOne({ where: { id: propertyId } });
     if (!prop) throw new NotFoundException('Имущество не найдено');
-    
-    // Note: We skip exact permission checking for company/government properties here for simplicity. 
+
+    // Note: We skip exact permission checking for company/government properties here for simplicity.
     // Ideally, we'd check if `ownerUsername` has the right to sell `prop.ownerId`.
-    
+
     prop.isForSale = true;
     prop.price = price;
     return this.propertyRepo.save(prop);
@@ -121,13 +122,18 @@ export class PropertyService {
   async cancelListing(ownerUsername: string, propertyId: string): Promise<Property> {
     const prop = await this.propertyRepo.findOne({ where: { id: propertyId } });
     if (!prop) throw new NotFoundException('Имущество не найдено');
-    
+
     prop.isForSale = false;
     prop.price = null;
     return this.propertyRepo.save(prop);
   }
 
-  async buyProperty(buyerUsername: string, propertyId: string, newOwnerId: string, newOwnerType: PropertyOwnerType): Promise<Property> {
+  async buyProperty(
+    buyerUsername: string,
+    propertyId: string,
+    newOwnerId: string,
+    newOwnerType: PropertyOwnerType,
+  ): Promise<Property> {
     const prop = await this.propertyRepo.findOne({ where: { id: propertyId } });
     if (!prop) throw new NotFoundException('Имущество не найдено');
     if (!prop.isForSale || !prop.price) throw new BadRequestException('Это имущество не продается');
@@ -173,16 +179,16 @@ export class PropertyService {
 
   async getMyProperties(username: string, uuid: string): Promise<Property[]> {
     const ownerIds: string[] = [uuid];
-    
+
     const companies = await this.companyRepo.find({ where: { ownerUsername: username } });
-    companies.forEach(c => ownerIds.push(c.id));
+    companies.forEach((c) => ownerIds.push(c.id));
 
     const state = await this.stateRepo.findOne({ where: { leaderUsername: username } });
     if (state) ownerIds.push(state.id);
 
     return this.propertyRepo.find({
       where: { ownerId: In(ownerIds) },
-      relations: ['street']
+      relations: ['street'],
     });
   }
 

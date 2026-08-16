@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { CompanyService } from '../entities/company-service.entity';
@@ -17,6 +13,7 @@ import { EconomyService } from './economy.service';
 import { StateEntity } from '../../states/entities/state.entity';
 import { Account } from '../entities/account.entity';
 import { Transfer } from '../entities/transfer.entity';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class CompanyServicesService {
@@ -42,6 +39,7 @@ export class CompanyServicesService {
     @InjectRepository(Transfer)
     private readonly transferRepo: Repository<Transfer>,
     private readonly economyService: EconomyService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   public async getServicesForCompany(companyId: string): Promise<CompanyService[]> {
@@ -61,7 +59,7 @@ export class CompanyServicesService {
       price: number;
       photoUrls?: string[];
       subItems?: { name: string; description?: string; price: number; photoUrls?: string[]; displayOrder?: number }[];
-    }
+    },
   ): Promise<CompanyService> {
     const company = await this.companyRepo.findOne({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Company not found');
@@ -81,7 +79,7 @@ export class CompanyServicesService {
     const savedService = await this.serviceRepo.save(service);
 
     if (dto.isComposite && dto.subItems && dto.subItems.length > 0) {
-      const subItems = dto.subItems.map(item =>
+      const subItems = dto.subItems.map((item) =>
         this.subItemRepo.create({
           serviceId: savedService.id,
           name: item.name,
@@ -89,7 +87,7 @@ export class CompanyServicesService {
           price: item.price,
           photoUrls: item.photoUrls || [],
           displayOrder: item.displayOrder || 0,
-        })
+        }),
       );
       await this.subItemRepo.save(subItems);
     }
@@ -110,7 +108,7 @@ export class CompanyServicesService {
       price: number;
       photoUrls?: string[];
       subItems?: { name: string; description?: string; price: number; photoUrls?: string[]; displayOrder?: number }[];
-    }
+    },
   ): Promise<CompanyService> {
     const company = await this.companyRepo.findOne({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Company not found');
@@ -136,7 +134,7 @@ export class CompanyServicesService {
 
     // Create new sub-items if it is composite
     if (dto.isComposite && dto.subItems && dto.subItems.length > 0) {
-      const subItems = dto.subItems.map(item =>
+      const subItems = dto.subItems.map((item) =>
         this.subItemRepo.create({
           serviceId: service.id,
           name: item.name,
@@ -144,7 +142,7 @@ export class CompanyServicesService {
           price: item.price,
           photoUrls: item.photoUrls || [],
           displayOrder: item.displayOrder || 0,
-        })
+        }),
       );
       await this.subItemRepo.save(subItems);
     }
@@ -164,7 +162,7 @@ export class CompanyServicesService {
       payerType?: 'player' | 'company' | 'state';
       payerCompanyId?: string | null;
       payerStateId?: string | null;
-    }
+    },
   ): Promise<CompanyOrder> {
     const company = await this.companyRepo.findOne({ where: { id: dto.companyId } });
     if (!company) throw new NotFoundException('Company not found');
@@ -218,25 +216,29 @@ export class CompanyServicesService {
       totalPrice += service.price; // Base fee
 
       for (const subItemId of dto.subItemIds) {
-        const subItem = service.subItems.find(si => si.id === subItemId);
+        const subItem = service.subItems.find((si) => si.id === subItemId);
         if (!subItem) throw new BadRequestException(`Sub-item ${subItemId} not found in this service`);
-        
+
         totalPrice += subItem.price;
-        orderItems.push(this.orderItemRepo.create({
-          subItemId: subItem.id,
-          name: subItem.name,
-          price: subItem.price,
-          quantity: 1,
-        }));
+        orderItems.push(
+          this.orderItemRepo.create({
+            subItemId: subItem.id,
+            name: subItem.name,
+            price: subItem.price,
+            quantity: 1,
+          }),
+        );
       }
     } else {
       totalPrice = service.price;
-      orderItems.push(this.orderItemRepo.create({
-        subItemId: null,
-        name: service.name,
-        price: service.price,
-        quantity: 1,
-      }));
+      orderItems.push(
+        this.orderItemRepo.create({
+          subItemId: null,
+          name: service.name,
+          price: service.price,
+          quantity: 1,
+        }),
+      );
     }
 
     const receiverAccount = await this.accountRepo.findOne({ where: { id: company.accountId as string } });
@@ -276,7 +278,7 @@ export class CompanyServicesService {
         status: CompanyOrderStatus.NEW,
         changedByUsername: username.toLowerCase(),
         comment: 'Order placed',
-      })
+      }),
     );
 
     const result = await this.orderRepo.findOne({
@@ -313,7 +315,7 @@ export class CompanyServicesService {
     orderId: string,
     username: string,
     status: CompanyOrderStatus,
-    comment?: string
+    comment?: string,
   ): Promise<CompanyOrder> {
     const order = await this.orderRepo.findOne({ where: { id: orderId }, relations: ['company'] });
     if (!order) throw new NotFoundException('Order not found');
@@ -330,7 +332,7 @@ export class CompanyServicesService {
     // A lot of specific state machine logic could be implemented here
     // e.g. only owner can mark IN_PROGRESS or COMPLETED
     // client can mark DISPUTED
-    
+
     order.status = status;
     await this.orderRepo.save(order);
 
@@ -339,9 +341,13 @@ export class CompanyServicesService {
         orderId: order.id,
         status,
         changedByUsername: username.toLowerCase(),
-        comment: comment || '',
-      })
+        comment: comment || 'Status changed',
+      }),
     );
+
+    if (status === CompanyOrderStatus.DISPUTED && isClient) {
+      this.eventEmitter.emit('company.order.disputed', { initiatorUsername: username.toLowerCase() });
+    }
 
     const result = await this.orderRepo.findOne({ where: { id: orderId }, relations: ['items', 'statusHistory'] });
     if (!result) throw new NotFoundException('Order not found after update');
@@ -355,7 +361,7 @@ export class CompanyServicesService {
       decision: 'REFUND' | 'REJECT';
       comment: string;
       finePercent?: number; // 0 to 100
-    }
+    },
   ): Promise<CompanyOrder> {
     const order = await this.orderRepo.findOne({
       where: { id: orderId },
@@ -379,7 +385,7 @@ export class CompanyServicesService {
     }
     const state = await this.stateRepo.findOne({ where: { id: order.company.stateId } });
     if (!state) {
-       throw new BadRequestException('Company state not found');
+      throw new BadRequestException('Company state not found');
     }
 
     if (!order.isEscalatedToAdmin && !isAdmin) {
@@ -402,60 +408,68 @@ export class CompanyServicesService {
           status: CompanyOrderStatus.COMPLETED,
           changedByUsername: username.toLowerCase(),
           comment: `[${isAdmin ? 'Admin' : 'President'} Decision]: Rejected dispute. ${dto.comment}`,
-        })
+        }),
       );
     } else {
       // REFUND
       order.status = CompanyOrderStatus.REFUNDED;
       await this.orderRepo.save(order);
-      
+
       const refundAmount = order.totalPrice;
       const currency = await this.economyService.getCurrencyForState(state.id);
 
       // find company account
-      const companyAccount = order.company.accountId ? await this.accountRepo.findOne({ where: { id: order.company.accountId } }) : null;
-      const clientAccount = await this.accountRepo.findOne({ where: { ownerUsername: order.clientUsername.toLowerCase(), type: 'personal', currencyCode: currency.code } });
+      const companyAccount = order.company.accountId
+        ? await this.accountRepo.findOne({ where: { id: order.company.accountId } })
+        : null;
+      const clientAccount = await this.accountRepo.findOne({
+        where: { ownerUsername: order.clientUsername.toLowerCase(), type: 'personal', currencyCode: currency.code },
+      });
 
       if (companyAccount && clientAccount) {
-         if (companyAccount.balance >= refundAmount) {
-             companyAccount.balance = Number((companyAccount.balance - refundAmount).toFixed(2));
-             clientAccount.balance = Number((clientAccount.balance + refundAmount).toFixed(2));
-             await this.accountRepo.save([companyAccount, clientAccount]);
-             
-             await this.transferRepo.save(this.transferRepo.create({
-                 fromAccountNumber: companyAccount.accountNumber,
-                 toAccountNumber: clientAccount.accountNumber,
-                 amount: refundAmount,
-                 currencyCode: currency.code,
-                 taxAmount: 0,
-                 description: `Refund for order ${order.id}`,
-             }));
-         } else {
-             throw new BadRequestException('Company does not have enough balance for refund');
-         }
-      }
+        if (companyAccount.balance >= refundAmount) {
+          companyAccount.balance = Number((companyAccount.balance - refundAmount).toFixed(2));
+          clientAccount.balance = Number((clientAccount.balance + refundAmount).toFixed(2));
+          await this.accountRepo.save([companyAccount, clientAccount]);
 
+          await this.transferRepo.save(
+            this.transferRepo.create({
+              fromAccountNumber: companyAccount.accountNumber,
+              toAccountNumber: clientAccount.accountNumber,
+              amount: refundAmount,
+              currencyCode: currency.code,
+              taxAmount: 0,
+              description: `Refund for order ${order.id}`,
+            }),
+          );
+        } else {
+          throw new BadRequestException('Company does not have enough balance for refund');
+        }
+      }
 
       if (dto.finePercent && dto.finePercent > 0) {
         const percent = Math.min(dto.finePercent, 100);
         const fineAmount = Number(((order.totalPrice * percent) / 100).toFixed(2));
-        const stateTreasuryAccount = state.treasuryAccountNumber ? await this.accountRepo.findOne({ where: { accountNumber: state.treasuryAccountNumber } }) : null;
-        
+        const stateTreasuryAccount = state.treasuryAccountNumber
+          ? await this.accountRepo.findOne({ where: { accountNumber: state.treasuryAccountNumber } })
+          : null;
+
         if (companyAccount && stateTreasuryAccount) {
           if (companyAccount.balance >= fineAmount) {
-             companyAccount.balance = Number((companyAccount.balance - fineAmount).toFixed(2));
-             stateTreasuryAccount.balance = Number((stateTreasuryAccount.balance + fineAmount).toFixed(2));
-             await this.accountRepo.save([companyAccount, stateTreasuryAccount]);
-             
-             await this.transferRepo.save(this.transferRepo.create({
-                 fromAccountNumber: companyAccount.accountNumber,
-                 toAccountNumber: stateTreasuryAccount.accountNumber,
-                 amount: fineAmount,
-                 currencyCode: currency.code,
-                 taxAmount: 0,
-                 description: `Fine for order ${order.id}`,
-             }));
+            companyAccount.balance = Number((companyAccount.balance - fineAmount).toFixed(2));
+            stateTreasuryAccount.balance = Number((stateTreasuryAccount.balance + fineAmount).toFixed(2));
+            await this.accountRepo.save([companyAccount, stateTreasuryAccount]);
 
+            await this.transferRepo.save(
+              this.transferRepo.create({
+                fromAccountNumber: companyAccount.accountNumber,
+                toAccountNumber: stateTreasuryAccount.accountNumber,
+                amount: fineAmount,
+                currencyCode: currency.code,
+                taxAmount: 0,
+                description: `Fine for order ${order.id}`,
+              }),
+            );
           }
         }
       }
@@ -466,11 +480,14 @@ export class CompanyServicesService {
           status: CompanyOrderStatus.REFUNDED,
           changedByUsername: username.toLowerCase(),
           comment: `[${isAdmin ? 'Admin' : 'President'} Decision]: Refunded to client. ${dto.comment}`,
-        })
+        }),
       );
     }
 
-    const result = await this.orderRepo.findOne({ where: { id: orderId }, relations: ['items', 'statusHistory', 'service'] });
+    const result = await this.orderRepo.findOne({
+      where: { id: orderId },
+      relations: ['items', 'statusHistory', 'service'],
+    });
     if (!result) throw new NotFoundException('Order not found after arbitrate');
     return result;
   }
@@ -497,10 +514,10 @@ export class CompanyServicesService {
     const isState = false; // State payer check omitted for brevity in escalate
 
     if (!isClient && !isCompanyOwner && !isState) {
-       // Just allow them if they are clientUsername
-       if (order.clientUsername.toLowerCase() !== username.toLowerCase()) {
-         throw new BadRequestException('You do not have permission to escalate this order');
-       }
+      // Just allow them if they are clientUsername
+      if (order.clientUsername.toLowerCase() !== username.toLowerCase()) {
+        throw new BadRequestException('You do not have permission to escalate this order');
+      }
     }
 
     order.status = CompanyOrderStatus.DISPUTED;
@@ -513,74 +530,80 @@ export class CompanyServicesService {
         status: CompanyOrderStatus.DISPUTED,
         changedByUsername: username.toLowerCase(),
         comment: `[Escalation]: ${comment}`,
-      })
+      }),
     );
 
-    return this.orderRepo.findOne({ where: { id: orderId }, relations: ['items', 'statusHistory', 'service'] }) as Promise<CompanyOrder>;
+    this.eventEmitter.emit('company.order.escalated', { initiatorUsername: username.toLowerCase() });
+
+    return this.orderRepo.findOne({
+      where: { id: orderId },
+      relations: ['items', 'statusHistory', 'service'],
+    }) as Promise<CompanyOrder>;
   }
 
   public async getDisputedOrders(username: string): Promise<CompanyOrder[]> {
     const lower = username.toLowerCase();
-    
+
     const user = await this.userRepo.findOne({ where: { username_lower: lower } });
     const isAdmin = user?.isAdmin || false;
-    
+
     if (isAdmin) {
       return this.orderRepo.find({
         where: { status: CompanyOrderStatus.DISPUTED, isEscalatedToAdmin: true },
         relations: ['company', 'service', 'statusHistory'],
-        order: { createdAt: 'DESC' }
+        order: { createdAt: 'DESC' },
       });
     }
 
-    const states = await this.stateRepo.createQueryBuilder('state')
+    const states = await this.stateRepo
+      .createQueryBuilder('state')
       .where('LOWER(state.leaderUsername) = :lower', { lower })
       .getMany();
 
     if (states.length === 0) return [];
 
-    const stateIds = states.map(s => s.id);
-    const companies = await this.companyRepo.createQueryBuilder('company')
+    const stateIds = states.map((s) => s.id);
+    const companies = await this.companyRepo
+      .createQueryBuilder('company')
       .where('company.stateId IN (:...stateIds)', { stateIds })
       .getMany();
 
     if (companies.length === 0) return [];
 
-    const companyIds = companies.map(c => c.id);
-    
+    const companyIds = companies.map((c) => c.id);
+
     return this.orderRepo.find({
       where: {
         status: CompanyOrderStatus.DISPUTED,
         isEscalatedToAdmin: false,
-        companyId: In(companyIds)
+        companyId: In(companyIds),
       },
       relations: ['company', 'service', 'statusHistory'],
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
   }
 
-  public async getMyIdentities(username: string): Promise<Array<{ type: string, id: string, label: string }>> {
+  public async getMyIdentities(username: string): Promise<Array<{ type: string; id: string; label: string }>> {
     const lower = username.toLowerCase();
-    
-    const identities = [
-      { type: 'player', id: lower, label: 'Личный счет' }
-    ];
-    
-    const states = await this.stateRepo.createQueryBuilder('state')
+
+    const identities = [{ type: 'player', id: lower, label: 'Личный счет' }];
+
+    const states = await this.stateRepo
+      .createQueryBuilder('state')
       .where('LOWER(state.leaderUsername) = :lower OR LOWER(state.treasurerUsername) = :lower', { lower })
       .getMany();
     for (const st of states) {
       identities.push({ type: 'state', id: st.id, label: `Казна ${st.name}` });
     }
-    
-    const companies = await this.companyRepo.createQueryBuilder('company')
+
+    const companies = await this.companyRepo
+      .createQueryBuilder('company')
       .where('LOWER(company.ownerUsername) = :lower', { lower })
       .getMany();
     for (const comp of companies) {
       identities.push({ type: 'company', id: comp.id, label: `Счет компании ${comp.name}` });
     }
-    
+
     return identities;
   }
 }
-

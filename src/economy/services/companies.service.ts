@@ -1,8 +1,5 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
@@ -26,6 +23,7 @@ export class CompaniesService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly economyService: EconomyService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   public async getAllCompanies(filters?: {
@@ -69,14 +67,10 @@ export class CompaniesService {
       throw new NotFoundException('Игрок не найден');
     }
     if (!user.emailIsConfirmed) {
-      throw new BadRequestException(
-        'Регистрировать фирму может только игрок с подтвержденной почтой',
-      );
+      throw new BadRequestException('Регистрировать фирму может только игрок с подтвержденной почтой');
     }
     if (!user.cityId && !user.stateId) {
-      throw new BadRequestException(
-        'Регистрировать фирму могут только граждане какого-либо государства или города',
-      );
+      throw new BadRequestException('Регистрировать фирму могут только граждане какого-либо государства или города');
     }
     let targetStateId = dto.stateId;
     if (!targetStateId && dto.cityId) {
@@ -120,9 +114,7 @@ export class CompaniesService {
     }
 
     // Создадим коммерческий счет для компании
-    const accountNumber =
-      '40702' +
-      Math.floor(100000000000000 + Math.random() * 900000000000000).toString();
+    const accountNumber = '40702' + Math.floor(100000000000000 + Math.random() * 900000000000000).toString();
 
     const account = this.accountRepository.create({
       accountNumber,
@@ -149,6 +141,22 @@ export class CompaniesService {
       priceChange24h: 0.0,
     });
 
-    return this.companyRepository.save(company);
+    const savedCompany = await this.companyRepository.save(company);
+
+    if (user.stateId && nationalCurrency.stateId && user.stateId !== nationalCurrency.stateId) {
+      this.eventEmitter.emit('bank.account.offshore.created', { initiatorUsername: username.toLowerCase() });
+    }
+
+    this.eventEmitter.emit('company.created', { initiatorUsername: username.toLowerCase() });
+
+    const userCompaniesCount = await this.companyRepository.count({
+      where: { ownerUsername: username.toLowerCase() }
+    });
+
+    if (userCompaniesCount === 5) {
+      this.eventEmitter.emit('company.created.fifth', { initiatorUsername: username.toLowerCase() });
+    }
+
+    return savedCompany;
   }
 }

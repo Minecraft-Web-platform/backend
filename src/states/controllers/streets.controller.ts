@@ -1,14 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Param,
-  Body,
-  UseGuards,
-  Req,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Req } from '@nestjs/common';
 import { StreetsService } from '../services/streets.service';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 import { AuthenticatedRequest } from '../../auth/types/auth-request.type';
@@ -24,11 +14,7 @@ export class StreetsController {
 
   @UseGuards(AccessTokenGuard)
   @Post()
-  async createStreet(
-    @Req() req: AuthenticatedRequest,
-    @Param('cityId') cityId: string,
-    @Body('name') name: string,
-  ) {
+  async createStreet(@Req() req: AuthenticatedRequest, @Param('cityId') cityId: string, @Body('name') name: string) {
     return this.streetsService.createStreet(req.user.username_lower, cityId, name);
   }
 

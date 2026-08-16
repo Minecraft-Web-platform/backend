@@ -1,13 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  UseGuards,
-  Req,
-  Put,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Req, Put } from '@nestjs/common';
 import { CompanyServicesService } from '../services/company-services.service';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 import { AuthenticatedRequest } from '../../auth/types/auth-request.type';
@@ -15,7 +6,7 @@ import { CompanyOrderStatus } from '../entities/company-order-status.enum';
 
 @Controller('company-services')
 export class CompanyServicesController {
-  constructor(private readonly servicesService: CompanyServicesService) { }
+  constructor(private readonly servicesService: CompanyServicesService) {}
 
   @Get('identities')
   @UseGuards(AccessTokenGuard)
@@ -33,14 +24,15 @@ export class CompanyServicesController {
   async createService(
     @Param('companyId') companyId: string,
     @Req() req: AuthenticatedRequest,
-    @Body() dto: {
+    @Body()
+    dto: {
       name: string;
       description?: string;
       isComposite: boolean;
       price: number;
       photoUrls?: string[];
       subItems?: { name: string; description?: string; price: number; photoUrls?: string[]; displayOrder?: number }[];
-    }
+    },
   ) {
     return this.servicesService.createService(companyId, req.user.username_lower, dto);
   }
@@ -51,14 +43,15 @@ export class CompanyServicesController {
     @Param('companyId') companyId: string,
     @Param('serviceId') serviceId: string,
     @Req() req: AuthenticatedRequest,
-    @Body() dto: {
+    @Body()
+    dto: {
       name: string;
       description?: string;
       isComposite: boolean;
       price: number;
       photoUrls?: string[];
       subItems?: { name: string; description?: string; price: number; photoUrls?: string[]; displayOrder?: number }[];
-    }
+    },
   ) {
     return this.servicesService.updateService(companyId, serviceId, req.user.username_lower, dto);
   }
@@ -79,7 +72,8 @@ export class CompanyServicesController {
   @UseGuards(AccessTokenGuard)
   async createOrder(
     @Req() req: AuthenticatedRequest,
-    @Body() dto: {
+    @Body()
+    dto: {
       companyId: string;
       serviceId: string;
       clientComment?: string;
@@ -87,7 +81,7 @@ export class CompanyServicesController {
       payerType?: 'player' | 'company' | 'state';
       payerCompanyId?: string | null;
       payerStateId?: string | null;
-    }
+    },
   ) {
     return this.servicesService.createOrder(req.user.username_lower, dto);
   }
@@ -97,7 +91,7 @@ export class CompanyServicesController {
   async updateOrderStatus(
     @Param('orderId') orderId: string,
     @Req() req: AuthenticatedRequest,
-    @Body() dto: { status: CompanyOrderStatus; comment?: string }
+    @Body() dto: { status: CompanyOrderStatus; comment?: string },
   ) {
     return this.servicesService.updateOrderStatus(orderId, req.user.username_lower, dto.status, dto.comment);
   }
@@ -107,7 +101,7 @@ export class CompanyServicesController {
   async arbitrateOrder(
     @Param('orderId') orderId: string,
     @Req() req: AuthenticatedRequest,
-    @Body() dto: { decision: 'REFUND' | 'REJECT'; comment: string; finePercent?: number }
+    @Body() dto: { decision: 'REFUND' | 'REJECT'; comment: string; finePercent?: number },
   ) {
     return this.servicesService.arbitrateOrder(req.user.username_lower, orderId, dto);
   }
@@ -117,7 +111,7 @@ export class CompanyServicesController {
   async escalateOrder(
     @Param('orderId') orderId: string,
     @Req() req: AuthenticatedRequest,
-    @Body() dto: { comment: string }
+    @Body() dto: { comment: string },
   ) {
     return this.servicesService.escalateOrder(req.user.username_lower, orderId, dto.comment);
   }

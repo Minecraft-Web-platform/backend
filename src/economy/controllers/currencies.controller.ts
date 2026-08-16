@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { CurrenciesService } from '../services/currencies.service';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 import { AuthenticatedRequest } from '../../auth/types/auth-request.type';
@@ -39,11 +31,7 @@ export class CurrenciesController {
   }
 
   @Post(':id/issue')
-  async issueCurrency(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') id: string,
-    @Body() body: { amount: number },
-  ) {
+  async issueCurrency(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { amount: number }) {
     const username = req.user.username_lower;
     return this.currenciesService.issueCurrency(username, id, body.amount);
   }

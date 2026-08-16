@@ -14,7 +14,6 @@ import { CompanyOrderItem } from './company-order-item.entity';
 import { CompanyOrderStatusHistory } from './company-order-status-history.entity';
 import { CompanyOrderStatus } from './company-order-status.enum';
 
-
 @Entity('economy_company_orders')
 export class CompanyOrder {
   @PrimaryGeneratedColumn('uuid')

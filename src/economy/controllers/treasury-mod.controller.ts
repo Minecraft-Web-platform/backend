@@ -3,7 +3,13 @@ import { EconomyService } from '../services/economy.service';
 import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
 
 import { CurrenciesService } from '../services/currencies.service';
-import { CheckPermissionsDto, GetAccountsDto, DepositDto, WithdrawDto, GetAccountCurrencyDto } from '../dto/treasury-mod.dto';
+import {
+  CheckPermissionsDto,
+  GetAccountsDto,
+  DepositDto,
+  WithdrawDto,
+  GetAccountCurrencyDto,
+} from '../dto/treasury-mod.dto';
 
 @UseGuards(ModIpGuard)
 @Controller('treasury-mod')
@@ -11,12 +17,10 @@ export class TreasuryModController {
   constructor(
     private readonly economyService: EconomyService,
     private readonly currenciesService: CurrenciesService,
-  ) { }
+  ) {}
 
   @Get('permissions')
-  async checkPermissions(
-    @Query() dto: CheckPermissionsDto
-  ) {
+  async checkPermissions(@Query() dto: CheckPermissionsDto) {
     if (!dto.playerUsername || !dto.entityId || !dto.entityType) {
       throw new BadRequestException('Missing parameters');
     }
@@ -39,35 +43,40 @@ export class TreasuryModController {
   }
 
   @Post('deposit')
-  async deposit(
-    @Body() dto: DepositDto
-  ) {
+  async deposit(@Body() dto: DepositDto) {
     if (!dto.playerUsername || !dto.entityId || !dto.entityType || !dto.items) {
       throw new BadRequestException('Missing parameters');
     }
 
-    const success = await this.economyService.processDeposit(dto.playerUsername, dto.entityId, dto.entityType, dto.amount, dto.items);
+    const success = await this.economyService.processDeposit(
+      dto.playerUsername,
+      dto.entityId,
+      dto.entityType,
+      dto.amount,
+      dto.items,
+    );
 
     return { success };
   }
 
   @Post('withdraw')
-  async withdraw(
-    @Body() dto: WithdrawDto
-  ) {
+  async withdraw(@Body() dto: WithdrawDto) {
     if (!dto.playerUsername || !dto.entityId || !dto.entityType) {
       throw new BadRequestException('Missing parameters');
     }
 
-    const items = await this.economyService.processWithdraw(dto.playerUsername, dto.entityId, dto.entityType, dto.amount);
+    const items = await this.economyService.processWithdraw(
+      dto.playerUsername,
+      dto.entityId,
+      dto.entityType,
+      dto.amount,
+    );
 
     return { success: true, items };
   }
 
   @Get('account-currency')
-  async getAccountCurrency(
-    @Query() dto: GetAccountCurrencyDto
-  ) {
+  async getAccountCurrency(@Query() dto: GetAccountCurrencyDto) {
     if (!dto.entityId || !dto.entityType) {
       throw new BadRequestException('Missing parameters');
     }
