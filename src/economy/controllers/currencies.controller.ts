@@ -35,4 +35,14 @@ export class CurrenciesController {
     const username = req.user.username_lower;
     return this.currenciesService.issueCurrency(username, id, body.amount);
   }
+
+  @Get(':id/rate-history')
+  async getRateHistory(@Param('id') id: string) {
+    return this.currenciesService.getCurrencyRateHistory(id);
+  }
+
+  @Get(':id')
+  async getCurrencyById(@Param('id') id: string) {
+    return this.currenciesService.getCurrencyById(id);
+  }
 }

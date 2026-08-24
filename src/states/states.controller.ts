@@ -120,17 +120,5 @@ export class StatesController {
     return this.statesService.digitizeTreasury(id, 'state_reserve');
   }
 
-  @Post(':id/treasury/withdraw')
-  @UseGuards(AccessTokenGuard)
-  async withdrawTreasury(
-    @Param('id') id: string,
-    @Body() dto: { minecraftItemId: string; quantity: number },
-    @Req() req: AuthenticatedRequest,
-  ) {
-    const state = await this.statesService.getStateById(id);
-    if (!state.leaderUsername || state.leaderUsername.toLowerCase() !== req.user?.username_lower) {
-      throw new ForbiddenException('Только лидер государства может вывести предметы из казны');
-    }
-    return this.statesService.withdrawTreasury(id, 'state_reserve', dto.minecraftItemId, dto.quantity);
-  }
+
 }

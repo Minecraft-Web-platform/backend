@@ -49,6 +49,9 @@ export class Company {
   @Column({ type: 'float', default: 0.0 })
   priceChange24h: number; // изменение цены за 24ч (%)
 
+  @Column({ default: false })
+  isArchived: boolean; // флаг архивации
+
   @CreateDateColumn()
   createdAt: Date;
 }

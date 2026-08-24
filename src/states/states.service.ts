@@ -16,6 +16,7 @@ import { ElectionEntity } from './entities/election.entity';
 import { ElectionCandidateEntity } from './entities/election-candidate.entity';
 import { ElectionVoteEntity } from './entities/election-vote.entity';
 import { StateTreasuryItemEntity } from './entities/state-treasury-item.entity';
+import { CityTerritory } from './entities/city-territory.entity';
 import { User } from '../users/entities/user.entity';
 import { Account } from '../economy/entities/account.entity';
 import { MinecraftRconService } from '../minecraft-rcon/minecraft-rcon.service';
@@ -62,6 +63,8 @@ export class StatesService {
     private readonly accountRepo: Repository<Account>,
     @InjectRepository(StateTreasuryItemEntity)
     private readonly treasuryRepo: Repository<StateTreasuryItemEntity>,
+    @InjectRepository(CityTerritory)
+    private readonly territoryRepo: Repository<CityTerritory>,
     private readonly rconService: MinecraftRconService,
     private readonly eventsService: EventsService,
     private readonly autoNewsService: AutoNewsService,
@@ -71,6 +74,7 @@ export class StatesService {
   // --- States ---
   async getAllStates(): Promise<StateEntity[]> {
     return this.stateRepo.find({
+      where: { isArchived: false },
       relations: ['cities', 'cities.citizens', 'citizens'],
       order: { createdAt: 'DESC' },
     });
@@ -148,7 +152,12 @@ export class StatesService {
         state[key] = dto[key];
       }
     });
-    return this.stateRepo.save(state);
+
+    const updatedState = await this.stateRepo.save(state);
+    
+    this.eventEmitter.emit('state.updated', { stateId: id });
+    
+    return updatedState;
   }
 
   async createNationalBank(stateId: string, username: string, bankName?: string): Promise<Account> {
@@ -178,9 +187,20 @@ export class StatesService {
   }
 
   async deleteState(id: string): Promise<void> {
-    const result = await this.stateRepo.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException('Государство не найдено');
+    const state = await this.getStateById(id);
+
+    if (state.treasuryAccountNumber) {
+      const account = await this.accountRepo.findOne({ where: { accountNumber: state.treasuryAccountNumber } });
+      if (account && account.balance > 0) {
+        throw new BadRequestException('Невозможно распустить государство, пока в казне есть деньги. Выведите средства.');
+      }
+    }
+
+    state.isArchived = true;
+    await this.stateRepo.save(state);
+
+    if (state.treasuryAccountNumber) {
+      await this.accountRepo.delete({ accountNumber: state.treasuryAccountNumber });
     }
   }
 
@@ -288,6 +308,7 @@ export class StatesService {
         initiatorUsername: creatorUsername,
         cityId: saved.id,
       });
+      if (saved.stateId) this.eventEmitter.emit('state.city.updated', { stateId: saved.stateId });
     }
 
     return saved;
@@ -314,7 +335,9 @@ export class StatesService {
         city[key] = dto[key];
       }
     });
-    return this.cityRepo.save(city);
+    const updated = await this.cityRepo.save(city);
+    if (updated.stateId) this.eventEmitter.emit('state.city.updated', { stateId: updated.stateId });
+    return updated;
   }
 
   async deleteCity(id: string, username?: string): Promise<void> {
@@ -332,10 +355,12 @@ export class StatesService {
       }
     }
 
+    const stateId = city.stateId;
     const result = await this.cityRepo.delete(id);
     if (result.affected === 0) {
       throw new NotFoundException('Город не найден');
     }
+    if (stateId) this.eventEmitter.emit('state.city.updated', { stateId });
   }
 
   async setCityCapital(id: string, username: string): Promise<CityEntity> {
@@ -533,6 +558,7 @@ export class StatesService {
         await this.userRepo.save(user);
 
         this.eventEmitter.emit('city.joined', { initiatorUsername: user.username_lower });
+        this.eventEmitter.emit('state.citizens.updated', { stateId: city.stateId });
 
         const otherRequests = await this.requestRepo.find({
           where: { username: req.username, status: 'pending' },
@@ -564,9 +590,13 @@ export class StatesService {
       await this.resignMayor(cityId, username);
     }
 
+    const stateId = city.stateId;
+
     user.cityId = null;
     user.stateId = null;
     await this.userRepo.save(user);
+
+    this.eventEmitter.emit('state.citizens.updated', { stateId });
 
     return { success: true, message: 'Вы успешно покинули город' };
   }
@@ -882,10 +912,13 @@ export class StatesService {
       if (item.id) {
         await this.treasuryRepo.remove(item);
       }
+      this.eventEmitter.emit('state.treasury.updated', { stateId });
       return item;
     }
 
-    return this.treasuryRepo.save(item);
+    const saved = await this.treasuryRepo.save(item);
+    this.eventEmitter.emit('state.treasury.updated', { stateId });
+    return saved;
   }
 
   async digitizeTreasury(
@@ -920,6 +953,9 @@ export class StatesService {
           }
         }
       }
+      
+      this.eventEmitter.emit('state.treasury.updated', { stateId });
+      
       return { message: 'Сейф успешно оцифрован', items: parsed.items };
     } catch (e) {
       if (e instanceof BadRequestException) throw e;
@@ -927,44 +963,135 @@ export class StatesService {
     }
   }
 
-  async withdrawTreasury(
-    stateId: string,
-    accountType: string,
-    minecraftItemId: string,
-    quantity: number,
-  ): Promise<{ message: string }> {
-    // Сначала проверяем баланс в БД
-    const item = await this.treasuryRepo.findOne({
-      where: { stateId, minecraftItemId },
+  // --- Territories ---
+  public async addCityTerritory(
+    cityId: string,
+    minX: number,
+    minY: number,
+    minZ: number,
+    maxX: number,
+    maxY: number,
+    maxZ: number,
+  ) {
+    const city = await this.cityRepo.findOne({ where: { id: cityId } });
+    if (!city) {
+      throw new NotFoundException('Город не найден');
+    }
+
+    // Ensure min is actually min and max is max
+    const actualMinX = Math.min(minX, maxX);
+    const actualMaxX = Math.max(minX, maxX);
+    const actualMinY = Math.min(minY, maxY);
+    const actualMaxY = Math.max(minY, maxY);
+    const actualMinZ = Math.min(minZ, maxZ);
+    const actualMaxZ = Math.max(minZ, maxZ);
+
+    // AABB Collision check
+    const overlapping = await this.territoryRepo
+      .createQueryBuilder('t')
+      .where(':minX <= t.maxX', { minX: actualMinX })
+      .andWhere(':maxX >= t.minX', { maxX: actualMaxX })
+      .andWhere(':minY <= t.maxY', { minY: actualMinY })
+      .andWhere(':maxY >= t.minY', { maxY: actualMaxY })
+      .andWhere(':minZ <= t.maxZ', { minZ: actualMinZ })
+      .andWhere(':maxZ >= t.minZ', { maxZ: actualMaxZ })
+      .getOne();
+
+    if (overlapping) {
+      throw new BadRequestException('Указанная зона пересекается с уже существующей территорией');
+    }
+
+    const territory = this.territoryRepo.create({
+      cityId,
+      minX: actualMinX,
+      minY: actualMinY,
+      minZ: actualMinZ,
+      maxX: actualMaxX,
+      maxY: actualMaxY,
+      maxZ: actualMaxZ,
     });
 
-    if (!item || item.quantity < quantity) {
-      throw new BadRequestException('Недостаточно предметов в казне государства');
-    }
+    return this.territoryRepo.save(territory);
+  }
 
-    const response = await this.rconService.executeCommand(
-      `safe withdraw ${stateId} ${accountType} ${minecraftItemId} ${quantity}`,
-    );
+  public async getAllTerritories() {
+    return this.territoryRepo.find({
+      relations: ['city', 'city.state'],
+    });
+  }
+
+  public async getBlueMapMarkers(mapName: string = 'world'): Promise<any> {
+    const territories = await this.territoryRepo.find({
+      relations: ['city', 'city.state'],
+    });
+
+    const markersData: Record<string, any> = {};
+
+    territories.forEach(t => {
+      const stateName = t.city.state?.name || 'Независимый город';
+      
+      let hash = 0;
+      for (let i = 0; i < stateName.length; i++) {
+        hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      let hexColor = '#';
+      for (let i = 0; i < 3; i++) {
+        const value = (hash >> (i * 8)) & 0xff;
+        hexColor += ('00' + value.toString(16)).substr(-2);
+      }
+      
+      const r = parseInt(hexColor.slice(1, 3), 16) || 255;
+      const g = parseInt(hexColor.slice(3, 5), 16) || 0;
+      const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+
+      // 1. 3D Зона (без label, чтобы избежать бага LabelPopup при клике)
+      markersData[t.id + "_zone"] = {
+        type: "extrude",
+        position: { x: (t.minX + t.maxX) / 2, y: t.maxY ?? 64, z: (t.minZ + t.maxZ) / 2 },
+        shape: [
+          { x: t.minX, z: t.minZ },
+          { x: t.maxX, z: t.minZ },
+          { x: t.maxX, z: t.maxZ },
+          { x: t.minX, z: t.maxZ }
+        ],
+        shapeMinY: t.minY ?? -64,
+        shapeMaxY: t.maxY ?? 319,
+        fillColor: { r, g, b, a: 0.4 },
+        lineColor: { r, g, b, a: 1.0 },
+        depthTestEnabled: false,
+        listed: false // Не дублируем в меню
+      };
+
+      // 2. Текстовая метка (HtmlMarker)
+      markersData[t.id + "_label"] = {
+        type: "html",
+        html: `<div style="color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 14px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${t.city.name}<br><span style="font-size: 11px; color: #ccc;">${stateName}</span></div>`,
+        position: { x: (t.minX + t.maxX) / 2, y: (t.maxY ?? 64) + 10, z: (t.minZ + t.maxZ) / 2 },
+        anchor: { x: 0.5, y: 0.5 },
+        classes: [],
+        listed: false // Скрываем из списка, чтобы не было гигантского меню и чтобы не нужен был label
+      };
+    });
+
+    let originalMarkers: any = {};
     try {
-      const parsed = JSON.parse(response);
-      if (!parsed.success) {
-        throw new BadRequestException(
-          parsed.reason || 'Сейф переполнен или выгружен из памяти сервера (подойдите к нему в игре).',
-        );
+      // Пытаемся получить оригинальные маркеры (игроки, точки), чтобы не стереть их
+      const res = await fetch(`http://minecraft_server:8100/maps/${mapName}/live/markers.json`);
+      if (res.ok) {
+        originalMarkers = await res.json();
       }
-
-      // Списываем баланс только если RCON вернул success
-      item.quantity -= quantity;
-      if (item.quantity <= 0) {
-        await this.treasuryRepo.remove(item);
-      } else {
-        await this.treasuryRepo.save(item);
-      }
-
-      return { message: 'Предметы успешно выведены в сейф' };
     } catch (e) {
-      if (e instanceof BadRequestException) throw e;
-      throw new BadRequestException('Ошибка при парсинге ответа сервера: ' + response);
+      console.error('Failed to fetch original BlueMap markers', e);
     }
+
+    // В BlueMap live/markers.json корневыми ключами являются ID слоев напрямую, без обертки markerSets
+    originalMarkers['city_territories_layer'] = {
+      label: "Территории Городов",
+      toggleable: true,
+      defaultHide: false,
+      markers: markersData
+    };
+
+    return originalMarkers;
   }
 }

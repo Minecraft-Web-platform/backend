@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards, Patch, Delete } from '@nestjs/common';
 import { CompaniesService } from '../services/companies.service';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 import { AuthenticatedRequest } from '../../auth/types/auth-request.type';
@@ -36,5 +36,19 @@ export class CompaniesController {
   ) {
     const username = req.user.username_lower;
     return this.companiesService.createCompany(username, body);
+  }
+
+  @Patch(':id')
+  async updateCompany(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: { name?: string; description?: string; logoUrl?: string },
+  ) {
+    return this.companiesService.updateCompany(id, body, req.user.username_lower);
+  }
+
+  @Delete(':id')
+  async archiveCompany(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.companiesService.archiveCompany(id, req.user.username_lower);
   }
 }

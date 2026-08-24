@@ -5,6 +5,7 @@ import { StatesController } from './states.controller';
 import { CitiesController } from './cities.controller';
 import { ElectionsController } from './elections.controller';
 import { StreetsController } from './controllers/streets.controller';
+import { TerritoriesController } from './controllers/territories.controller';
 import { StreetsService } from './services/streets.service';
 import { StateEntity } from './entities/state.entity';
 import { CityEntity } from './entities/city.entity';
@@ -16,6 +17,7 @@ import { ElectionEntity } from './entities/election.entity';
 import { ElectionCandidateEntity } from './entities/election-candidate.entity';
 import { ElectionVoteEntity } from './entities/election-vote.entity';
 import { StreetEntity } from './entities/street.entity';
+import { CityTerritory } from './entities/city-territory.entity';
 import { User } from '../users/entities/user.entity';
 import { Account } from '../economy/entities/account.entity';
 import { OwnJwtModule } from '../own-jwt/own-jwt.module';
@@ -37,6 +39,7 @@ import { NewsModule } from '../news/news.module';
       ElectionCandidateEntity,
       ElectionVoteEntity,
       StreetEntity,
+      CityTerritory,
       User,
       Account,
     ]),
@@ -47,7 +50,13 @@ import { NewsModule } from '../news/news.module';
     NewsModule,
   ],
   providers: [StatesService, StreetsService],
-  controllers: [StatesController, CitiesController, ElectionsController, StreetsController],
+  controllers: [
+    StatesController,
+    CitiesController,
+    ElectionsController,
+    StreetsController,
+    TerritoriesController,
+  ],
   exports: [StatesService],
 })
 export class StatesModule {}

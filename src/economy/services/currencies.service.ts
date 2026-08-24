@@ -1,12 +1,15 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThanOrEqual } from 'typeorm';
 import { Currency } from '../entities/currency.entity';
 import { StateEntity } from '../../states/entities/state.entity';
 import { Account } from '../entities/account.entity';
 
 import { StateTreasuryItemEntity } from '../../states/entities/state-treasury-item.entity';
 import { AutoNewsService } from '../../news/auto-news.service';
+import { CurrencyRateHistory } from '../entities/currency-rate-history.entity';
 
 @Injectable()
 export class CurrenciesService {
@@ -19,22 +22,47 @@ export class CurrenciesService {
     private readonly accountRepository: Repository<Account>,
     @InjectRepository(StateTreasuryItemEntity)
     private readonly treasuryRepo: Repository<StateTreasuryItemEntity>,
+    @InjectRepository(CurrencyRateHistory)
+    private readonly rateHistoryRepo: Repository<CurrencyRateHistory>,
     private readonly autoNewsService: AutoNewsService,
   ) {}
 
-  public async getAllCurrencies(): Promise<Currency[]> {
+  public async getAllCurrencies(): Promise<any[]> {
     const currencies = await this.currencyRepository.find({
       order: { createdAt: 'ASC' },
     });
+    const states = await this.stateRepository.find();
+    const stateMap = new Map(states.map((s) => [s.id, s]));
 
-    // Автоматический пересчет курса для каждой валюты
+    return currencies.map((c) => {
+      const s = c.stateId ? stateMap.get(c.stateId) : null;
+      return {
+        ...c,
+        stateFlagUrl: s?.flagUrl || null,
+      };
+    });
+  }
+
+  @OnEvent('state.updated')
+  @OnEvent('state.treasury.updated')
+  @OnEvent('state.citizens.updated')
+  @OnEvent('state.city.updated')
+  public async handleStateEconomyChanges(payload: { stateId: string }) {
+    if (!payload.stateId) return;
+    const currency = await this.getCurrencyByStateId(payload.stateId);
+    if (currency) {
+      await this.recalculateExchangeRate(currency);
+    }
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  public async handleDailyCurrencyGrowth() {
+    const currencies = await this.currencyRepository.find();
     for (const cur of currencies) {
       if (cur.stateId) {
         await this.recalculateExchangeRate(cur);
       }
     }
-
-    return currencies;
   }
 
   public async createCurrency(
@@ -165,10 +193,6 @@ export class CurrenciesService {
     }
 
     const updated = await this.recalculateExchangeRate(currency);
-    if (oldRate > 0) {
-      updated.rateChange24h = Number((((updated.exchangeRate - oldRate) / oldRate) * 100).toFixed(2));
-      await this.currencyRepository.save(updated);
-    }
 
     return updated;
   }
@@ -233,12 +257,67 @@ export class CurrenciesService {
     const economicPower = Number((basePower * taxCoefficient).toFixed(2));
     const totalIssued = Math.max(currency.totalIssued, 1);
     const calculatedRate = (currency.reserves + economicPower) / totalIssued;
+    const oldRate = currency.exchangeRate;
     currency.exchangeRate = Number(Math.max(calculatedRate, 0.01).toFixed(4));
+
+    if (oldRate !== currency.exchangeRate) {
+      const history = this.rateHistoryRepo.create({
+        currencyId: currency.id,
+        rate: currency.exchangeRate,
+      });
+      await this.rateHistoryRepo.save(history);
+    }
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    let baseHistory = await this.rateHistoryRepo.findOne({
+      where: { currencyId: currency.id, createdAt: MoreThanOrEqual(oneDayAgo) },
+      order: { createdAt: 'ASC' },
+    });
+
+    if (!baseHistory) {
+      baseHistory = await this.rateHistoryRepo.findOne({
+        where: { currencyId: currency.id },
+        order: { createdAt: 'DESC' },
+      });
+    }
+
+    const baseRate = baseHistory ? baseHistory.rate : currency.exchangeRate;
+    if (baseRate > 0) {
+      currency.rateChange24h = Number((((currency.exchangeRate - baseRate) / baseRate) * 100).toFixed(2));
+    } else {
+      currency.rateChange24h = 0;
+    }
 
     return this.currencyRepository.save(currency);
   }
 
+  public async getCurrencyRateHistory(currencyId: string): Promise<CurrencyRateHistory[]> {
+    return this.rateHistoryRepo.find({
+      where: { currencyId },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   public async getCurrencyByStateId(stateId: string): Promise<Currency | null> {
     return this.currencyRepository.findOne({ where: { stateId } });
+  }
+
+  public async getCurrencyById(id: string): Promise<any> {
+    const c = await this.currencyRepository.findOne({
+      where: { id },
+    });
+    if (!c) {
+      throw new NotFoundException('Валюта не найдена');
+    }
+
+    let stateFlagUrl: string | null = null;
+    if (c.stateId) {
+      const state = await this.stateRepository.findOne({ where: { id: c.stateId } });
+      if (state) {
+        stateFlagUrl = state.flagUrl;
+      }
+    }
+
+    return { ...c, stateFlagUrl };
   }
 }

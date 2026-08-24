@@ -7,6 +7,7 @@ import { Transfer } from './entities/transfer.entity';
 import { Company } from './entities/company.entity';
 import { CompanyShare } from './entities/company-share.entity';
 import { CompanySharePriceHistory } from './entities/company-share-price-history.entity';
+import { CurrencyRateHistory } from './entities/currency-rate-history.entity';
 import { WithdrawnShare } from './entities/withdrawn-share.entity';
 import { Property } from './entities/property.entity';
 import { IpoRequest } from './entities/ipo-request.entity';
@@ -33,6 +34,7 @@ import { UsersModule } from '../users/users.module';
 import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
 import { StatesModule } from '../states/states.module';
 import { NewsModule } from '../news/news.module';
+import { ProxyController } from './controllers/proxy.controller';
 
 import { AccountTreasuryItemEntity } from './entities/account-treasury-item.entity';
 import { CompanyService } from './entities/company-service.entity';
@@ -51,6 +53,7 @@ import { CompanyOrderStatusHistory } from './entities/company-order-status-histo
       Company,
       CompanyShare,
       CompanySharePriceHistory,
+      CurrencyRateHistory,
       StateEntity,
       CityEntity,
       StateTreasuryItemEntity,
@@ -88,6 +91,7 @@ import { CompanyOrderStatusHistory } from './entities/company-order-status-histo
     StockModController,
     PropertyController,
     CompanyServicesController,
+    ProxyController,
   ],
   exports: [
     EconomyService,

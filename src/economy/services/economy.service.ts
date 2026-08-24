@@ -724,15 +724,36 @@ export class EconomyService {
 
   public async getMyTransfers(username: string): Promise<any[]> {
     const { accounts: myAccounts } = await this.getMyAccounts(username);
-    if (myAccounts.length === 0) return [];
-    const numbers = myAccounts.map((a: any) => a.accountNumber);
+    const lower = username.toLowerCase();
+    
+    // Check if user is leader or treasurer to show all state transactions
+    const state = await this.stateRepository
+      .createQueryBuilder('state')
+      .where('LOWER(state.leaderUsername) = :lower', { lower })
+      .orWhere('LOWER(state.treasurerUsername) = :lower', { lower })
+      .getOne();
+
+    let allNumbers = myAccounts.map((a: any) => a.accountNumber);
+
+    if (state) {
+      const currency = await this.currencyRepository.findOne({ where: { stateId: state.id } });
+      if (currency) {
+        const stateAccounts = await this.accountRepository.find({
+          where: { currencyCode: currency.code },
+        });
+        const stateNums = stateAccounts.map((a) => a.accountNumber);
+        allNumbers = [...new Set([...allNumbers, ...stateNums])];
+      }
+    }
+
+    if (allNumbers.length === 0) return [];
 
     const transfers = await this.transferRepository
       .createQueryBuilder('t')
       .where(
         't.fromAccountNumber IN (:...nums) OR t.toAccountNumber IN (:...nums) OR t.taxAccountNumber IN (:...nums)',
         {
-          nums: numbers,
+          nums: allNumbers,
         },
       )
       .orderBy('t.createdAt', 'DESC')
@@ -953,6 +974,7 @@ export class EconomyService {
         toSave.push(treasuryItem);
       }
       await this.stateTreasuryItemRepository.save(toSave);
+      this.eventEmitter.emit('state.treasury.updated', { stateId: targetStateId });
       return true;
     } else if (targetAccountId) {
       const cleanAccountNumber = entityId.replace(/\D/g, '');
@@ -964,13 +986,16 @@ export class EconomyService {
 
       let depositedValue = 0;
       for (const item of items) {
-        const val = ITEM_VALUES[item.itemId];
-        if (val !== undefined) {
-          depositedValue += val * item.count;
-        } else if (currency) {
-          if (item.itemId === currency.minecraftItemId) depositedValue += 1 * item.count;
-          else if (item.itemId === currency.kopeckItemId) depositedValue += 0.01 * item.count;
-          else throw new BadRequestException(`Предмет ${item.itemId} не является валютой.`);
+        if (currency) {
+          if (item.itemId === currency.minecraftItemId) {
+            depositedValue += 1 * item.count;
+          } else if (item.itemId === currency.kopeckItemId) {
+            depositedValue += 0.01 * item.count;
+          } else {
+            throw new BadRequestException(
+              `Предмет ${item.itemId} не является валютой этого счета. Банкомат принимает только валюту.`
+            );
+          }
         }
       }
 
@@ -1022,6 +1047,7 @@ export class EconomyService {
         itemsToReturn.push({ itemId: tItem.minecraftItemId, count: tItem.quantity });
       }
       await this.stateTreasuryItemRepository.remove(treasuryItems);
+      this.eventEmitter.emit('state.treasury.updated', { stateId: targetStateId });
       return itemsToReturn;
     } else if (targetAccountId) {
       const cleanAccountNumber = entityId.replace(/\D/g, '');
@@ -1041,65 +1067,33 @@ export class EconomyService {
       const cName = currency ? currency.name : undefined;
       const cEnch = currency ? currency.minecraftEnchantment : undefined;
 
-      let tiers: any[] = [];
-      if (kopeck === 'minecraft:gold_nugget') tiers = GOLD_TIERS;
-      else if (kopeck === 'minecraft:diamond') tiers = DIAMOND_TIERS;
-      else if (kopeck === 'minecraft:emerald') tiers = EMERALD_TIERS;
-      else if (kopeck === 'minecraft:netherite_scrap') tiers = NETHERITE_TIERS;
-      let remaining = requestedAmount;
-      if (currency && currency.minecraftItemId !== kopeck && ITEM_VALUES[currency.kopeckItemId] === undefined) {
-        // It's a custom currency. Give minecraftItemId for the integer part, and kopeck for the decimal part.
-        const mainCount = Math.floor(remaining);
-        const kopeckCount = Math.round((remaining - mainCount) * 100);
+      if (!currency) {
+        throw new BadRequestException('У счета нет привязанной валюты.');
+      }
 
-        if (mainCount > 0) {
-          const chunks = Math.floor(mainCount / 64);
-          const remainder = mainCount % 64;
-          for (let i = 0; i < chunks; i++) {
-            itemsToReturn.push({ itemId: currency.minecraftItemId, count: 64, name: cName, enchantment: cEnch });
-          }
-          if (remainder > 0) {
-            itemsToReturn.push({ itemId: currency.minecraftItemId, count: remainder, name: cName, enchantment: cEnch });
-          }
-        }
+      const remaining = requestedAmount;
+      const mainCount = Math.floor(remaining);
+      const kopeckCount = Math.round((remaining - mainCount) * 100);
 
-        if (kopeckCount > 0) {
-          const chunks = Math.floor(kopeckCount / 64);
-          const remainder = kopeckCount % 64;
-          for (let i = 0; i < chunks; i++) {
-            itemsToReturn.push({ itemId: currency.kopeckItemId, count: 64, name: cName, enchantment: cEnch });
-          }
-          if (remainder > 0) {
-            itemsToReturn.push({ itemId: currency.kopeckItemId, count: remainder, name: cName, enchantment: cEnch });
-          }
+      if (mainCount > 0) {
+        const chunks = Math.floor(mainCount / 64);
+        const remainder = mainCount % 64;
+        for (let i = 0; i < chunks; i++) {
+          itemsToReturn.push({ itemId: currency.minecraftItemId, count: 64, name: cName, enchantment: cEnch });
         }
-      } else {
-        // Legacy tier behavior for standard items
-        for (const tier of tiers) {
-          if (remaining >= tier.val) {
-            const count = Math.floor(remaining / tier.val);
-            const chunks = Math.floor(count / 64);
-            const remainder = count % 64;
-            for (let i = 0; i < chunks; i++) {
-              itemsToReturn.push({ itemId: tier.id, count: 64, name: cName, enchantment: cEnch });
-            }
-            if (remainder > 0) {
-              itemsToReturn.push({ itemId: tier.id, count: remainder, name: cName, enchantment: cEnch });
-            }
-            remaining = remaining % tier.val;
-          }
+        if (remainder > 0) {
+          itemsToReturn.push({ itemId: currency.minecraftItemId, count: remainder, name: cName, enchantment: cEnch });
         }
+      }
 
-        if (remaining > 0) {
-          const count = remaining;
-          const chunks = Math.floor(count / 64);
-          const remainder = count % 64;
-          for (let i = 0; i < chunks; i++) {
-            itemsToReturn.push({ itemId: kopeck, count: 64, name: cName, enchantment: cEnch });
-          }
-          if (remainder > 0) {
-            itemsToReturn.push({ itemId: kopeck, count: remainder, name: cName, enchantment: cEnch });
-          }
+      if (kopeckCount > 0) {
+        const chunks = Math.floor(kopeckCount / 64);
+        const remainder = kopeckCount % 64;
+        for (let i = 0; i < chunks; i++) {
+          itemsToReturn.push({ itemId: currency.kopeckItemId, count: 64, name: cName, enchantment: cEnch });
+        }
+        if (remainder > 0) {
+          itemsToReturn.push({ itemId: currency.kopeckItemId, count: remainder, name: cName, enchantment: cEnch });
         }
       }
 
@@ -1126,8 +1120,7 @@ export class EconomyService {
     }
 
     if (targetStateId && entityType === 'gold_reserve') {
-      const currency = await this.currencyRepository.findOne({ where: { stateId: targetStateId } });
-      return currency?.minecraftItemId || 'minecraft:gold_ingot';
+      return 'minecraft:gold_block';
     } else if (targetAccountId) {
       const account = await this.accountRepository.findOne({ where: { id: targetAccountId } });
       if (account) {

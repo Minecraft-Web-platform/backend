@@ -1,7 +1,7 @@
 import { DiplomacyStatus } from '../entities/state-diplomacy.entity';
 import { CitizenshipRequestStatus } from '../entities/citizenship-request.entity';
 import { ElectionTargetType } from '../entities/election.entity';
-import { IsString, IsOptional, IsNumber, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsIn, IsArray } from 'class-validator';
 
 export class CreateStateDto {
   @IsString()
@@ -167,6 +167,11 @@ export class UpdateCityDto {
   @IsString()
   @IsOptional()
   treasuryAccountNumber?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  images?: string[];
 }
 
 export class SetDiplomacyDto {

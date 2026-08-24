@@ -3,6 +3,7 @@ import { StockExchangeService } from '../services/stock-exchange.service';
 import { CompaniesService } from '../services/companies.service';
 import { StatesService } from '../../states/states.service';
 import { EconomyService } from '../services/economy.service';
+import { CurrenciesService } from '../services/currencies.service';
 import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
 import {
   CheckStatePermissionsDto,
@@ -22,6 +23,7 @@ export class StockModController {
     private readonly companiesService: CompaniesService,
     private readonly statesService: StatesService,
     private readonly economyService: EconomyService,
+    private readonly currenciesService: CurrenciesService,
   ) {}
 
   @Get('permissions/state/:stateId')
@@ -90,8 +92,8 @@ export class StockModController {
       const last9 = history.slice(-9).map((h) => h.price);
       let currencyItem = 'minecraft:gold_nugget';
       if (comp.exchangeStateId) {
-        const item = await this.economyService.getAccountCurrencyItem(comp.exchangeStateId, 'gold_reserve');
-        if (item) currencyItem = item;
+        const currency = await this.currenciesService.getCurrencyByStateId(comp.exchangeStateId);
+        if (currency && currency.minecraftItemId) currencyItem = currency.minecraftItemId;
       }
       result.push({ ...comp, history: last9, currencyItem });
     }

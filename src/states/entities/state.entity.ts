@@ -71,4 +71,7 @@ export class StateEntity {
 
   @OneToMany(() => StateTreasuryItemEntity, (item) => item.state, { cascade: true })
   treasuryItems?: StateTreasuryItemEntity[];
+
+  @Column({ default: false })
+  isArchived: boolean; // флаг архивации
 }

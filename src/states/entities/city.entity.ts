@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, Pri
 import { StateEntity } from './state.entity';
 import { User } from '../../users/entities/user.entity';
 import { CitizenshipRequestEntity } from './citizenship-request.entity';
+import { CityTerritory } from './city-territory.entity';
 
 @Entity('cities')
 export class CityEntity {
@@ -44,4 +45,7 @@ export class CityEntity {
 
   @OneToMany(() => CitizenshipRequestEntity, (req) => req.city, { cascade: true })
   citizenshipRequests?: CitizenshipRequestEntity[];
+
+  @OneToMany(() => CityTerritory, (t) => t.city, { cascade: true })
+  territories?: CityTerritory[];
 }

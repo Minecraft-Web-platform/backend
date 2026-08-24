@@ -40,7 +40,7 @@ export class CompanyServicesService {
     private readonly transferRepo: Repository<Transfer>,
     private readonly economyService: EconomyService,
     private readonly eventEmitter: EventEmitter2,
-  ) {}
+  ) { }
 
   public async getServicesForCompany(companyId: string): Promise<CompanyService[]> {
     return this.serviceRepo.find({
@@ -497,7 +497,9 @@ export class CompanyServicesService {
       where: { id: orderId },
       relations: ['company'],
     });
-    if (!order) throw new NotFoundException('Order not found');
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
 
     if (order.status !== CompanyOrderStatus.REFUNDED && order.status !== CompanyOrderStatus.COMPLETED) {
       throw new BadRequestException('Can only escalate orders that have been arbitrated');
@@ -547,8 +549,9 @@ export class CompanyServicesService {
     const user = await this.userRepo.findOne({ where: { username_lower: lower } });
     const isAdmin = user?.isAdmin || false;
 
+    let adminOrders: CompanyOrder[] = [];
     if (isAdmin) {
-      return this.orderRepo.find({
+      adminOrders = await this.orderRepo.find({
         where: { status: CompanyOrderStatus.DISPUTED, isEscalatedToAdmin: true },
         relations: ['company', 'service', 'statusHistory'],
         order: { createdAt: 'DESC' },
@@ -560,27 +563,30 @@ export class CompanyServicesService {
       .where('LOWER(state.leaderUsername) = :lower', { lower })
       .getMany();
 
-    if (states.length === 0) return [];
+    let presidentOrders: CompanyOrder[] = [];
+    if (states.length > 0) {
+      const stateIds = states.map((s) => s.id);
+      const companies = await this.companyRepo
+        .createQueryBuilder('company')
+        .where('company.stateId IN (:...stateIds)', { stateIds })
+        .getMany();
 
-    const stateIds = states.map((s) => s.id);
-    const companies = await this.companyRepo
-      .createQueryBuilder('company')
-      .where('company.stateId IN (:...stateIds)', { stateIds })
-      .getMany();
+      if (companies.length > 0) {
+        const companyIds = companies.map((c) => c.id);
+        presidentOrders = await this.orderRepo.find({
+          where: {
+            status: CompanyOrderStatus.DISPUTED,
+            isEscalatedToAdmin: false,
+            companyId: In(companyIds),
+          },
+          relations: ['company', 'service', 'statusHistory'],
+          order: { createdAt: 'DESC' },
+        });
+      }
+    }
 
-    if (companies.length === 0) return [];
-
-    const companyIds = companies.map((c) => c.id);
-
-    return this.orderRepo.find({
-      where: {
-        status: CompanyOrderStatus.DISPUTED,
-        isEscalatedToAdmin: false,
-        companyId: In(companyIds),
-      },
-      relations: ['company', 'service', 'statusHistory'],
-      order: { createdAt: 'DESC' },
-    });
+    const combined = [...adminOrders, ...presidentOrders];
+    return combined.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   public async getMyIdentities(username: string): Promise<Array<{ type: string; id: string; label: string }>> {

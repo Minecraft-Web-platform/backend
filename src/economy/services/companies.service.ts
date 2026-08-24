@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -31,7 +31,7 @@ export class CompaniesService {
     stateId?: string;
     ownerUsername?: string;
   }): Promise<Company[]> {
-    const where: any = {};
+    const where: any = { isArchived: false };
     if (filters?.cityId) where.cityId = filters.cityId;
     if (filters?.stateId) where.stateId = filters.stateId;
     if (filters?.ownerUsername) where.ownerUsername = filters.ownerUsername;
@@ -158,5 +158,49 @@ export class CompaniesService {
     }
 
     return savedCompany;
+  }
+
+  public async updateCompany(
+    id: string,
+    dto: { name?: string; description?: string; logoUrl?: string },
+    username?: string,
+  ): Promise<Company> {
+    const company = await this.getCompanyById(id);
+    if (username) {
+      const user = await this.userRepository.findOne({ where: { username_lower: username.toLowerCase() } });
+      if (company.ownerUsername !== username.toLowerCase() && !user?.isAdmin) {
+        throw new ForbiddenException('Только владелец или администратор могут редактировать компанию');
+      }
+    }
+
+    if (dto.name !== undefined) company.name = dto.name;
+    if (dto.description !== undefined) company.description = dto.description;
+    if (dto.logoUrl !== undefined) company.logoUrl = dto.logoUrl;
+
+    return this.companyRepository.save(company);
+  }
+
+  public async archiveCompany(id: string, username?: string): Promise<void> {
+    const company = await this.getCompanyById(id);
+    if (username) {
+      const user = await this.userRepository.findOne({ where: { username_lower: username.toLowerCase() } });
+      if (company.ownerUsername !== username.toLowerCase() && !user?.isAdmin) {
+        throw new ForbiddenException('Только владелец или администратор могут удалить (архивировать) компанию');
+      }
+    }
+
+    if (company.accountId) {
+      const account = await this.accountRepository.findOne({ where: { id: company.accountId } });
+      if (account && account.balance > 0) {
+        throw new BadRequestException('Невозможно закрыть компанию, пока на ее счете есть деньги. Выведите средства.');
+      }
+    }
+
+    company.isArchived = true;
+    await this.companyRepository.save(company);
+
+    if (company.accountId) {
+      await this.accountRepository.delete(company.accountId);
+    }
   }
 }
