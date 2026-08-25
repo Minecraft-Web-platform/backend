@@ -1059,11 +1059,11 @@ export class StatesService {
     const markersData: Record<string, any> = {};
     const bordersData: Record<string, any> = {};
     
-    const cityGroups: Record<string, { city: any, points: {x: number, z: number}[] }> = {};
+    const cityGroups: Record<string, { city: any, points: {x: number, z: number}[], minY: number, maxY: number }> = {};
 
     territories.forEach(t => {
       if (!cityGroups[t.city.id]) {
-        cityGroups[t.city.id] = { city: t.city, points: [] };
+        cityGroups[t.city.id] = { city: t.city, points: [], minY: Infinity, maxY: -Infinity };
       }
       cityGroups[t.city.id].points.push(
         { x: t.minX, z: t.minZ },
@@ -1071,6 +1071,12 @@ export class StatesService {
         { x: t.maxX, z: t.maxZ },
         { x: t.minX, z: t.maxZ }
       );
+
+      const tMinY = t.minY ?? -64;
+      const tMaxY = t.maxY ?? 319;
+      if (tMinY < cityGroups[t.city.id].minY) cityGroups[t.city.id].minY = tMinY;
+      if (tMaxY > cityGroups[t.city.id].maxY) cityGroups[t.city.id].maxY = tMaxY;
+
       const stateName = t.city.state?.name || 'Независимый город';
       
       let hash = 0;
@@ -1137,10 +1143,10 @@ export class StatesService {
 
       bordersData[group.city.id + "_border"] = {
         type: "extrude",
-        position: { x: hull[0].x, y: 64, z: hull[0].z },
+        position: { x: hull[0].x, y: (group.minY + group.maxY) / 2, z: hull[0].z },
         shape: hull,
-        shapeMinY: -64,
-        shapeMaxY: 319,
+        shapeMinY: group.minY,
+        shapeMaxY: group.maxY,
         fillColor: { r, g, b, a: 0.05 }, // Слегка заливаем территорию города
         lineColor: { r, g, b, a: 1.0 },  // Яркая толстая граница
         depthTestEnabled: false,
