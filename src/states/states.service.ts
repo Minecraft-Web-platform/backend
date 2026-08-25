@@ -1058,8 +1058,10 @@ export class StatesService {
 
     const markersData: Record<string, any> = {};
     const bordersData: Record<string, any> = {};
+    const stateBordersData: Record<string, any> = {};
     
     const cityGroups: Record<string, { city: any, points: {x: number, z: number}[], minY: number, maxY: number }> = {};
+    const stateGroups: Record<string, { state: any, points: {x: number, z: number}[], minY: number, maxY: number }> = {};
 
     territories.forEach(t => {
       if (!cityGroups[t.city.id]) {
@@ -1076,6 +1078,20 @@ export class StatesService {
       const tMaxY = t.maxY ?? 319;
       if (tMinY < cityGroups[t.city.id].minY) cityGroups[t.city.id].minY = tMinY;
       if (tMaxY > cityGroups[t.city.id].maxY) cityGroups[t.city.id].maxY = tMaxY;
+
+      if (t.city.state) {
+        if (!stateGroups[t.city.state.id]) {
+          stateGroups[t.city.state.id] = { state: t.city.state, points: [], minY: Infinity, maxY: -Infinity };
+        }
+        stateGroups[t.city.state.id].points.push(
+          { x: t.minX, z: t.minZ },
+          { x: t.maxX, z: t.minZ },
+          { x: t.maxX, z: t.maxZ },
+          { x: t.minX, z: t.maxZ }
+        );
+        if (tMinY < stateGroups[t.city.state.id].minY) stateGroups[t.city.state.id].minY = tMinY;
+        if (tMaxY > stateGroups[t.city.state.id].maxY) stateGroups[t.city.state.id].maxY = tMaxY;
+      }
 
       const stateName = t.city.state?.name || 'Независимый город';
       
@@ -1156,6 +1172,50 @@ export class StatesService {
       };
     });
 
+    Object.values(stateGroups).forEach(group => {
+      const hull = this.getConvexHull(group.points);
+      if (hull.length < 3) return;
+
+      const stateName = group.state.name;
+      let hash = 0;
+      for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
+      let hexColor = '#';
+      for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
+      
+      const r = parseInt(hexColor.slice(1, 3), 16) || 255;
+      const g = parseInt(hexColor.slice(3, 5), 16) || 0;
+      const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+
+      stateBordersData[group.state.id + "_border"] = {
+        type: "extrude",
+        position: { x: hull[0].x, y: (group.minY + group.maxY) / 2, z: hull[0].z },
+        shape: hull,
+        shapeMinY: group.minY,
+        shapeMaxY: group.maxY,
+        fillColor: { r, g, b, a: 0.02 }, // ОЧЕНЬ слабая заливка для всего государства
+        lineColor: { r, g, b, a: 1.0 },
+        depthTestEnabled: false,
+        listed: false
+      };
+
+      const emblemUrl = group.state.coatOfArmsUrl || group.state.flagUrl;
+      const flagHtml = emblemUrl
+        ? `<img src="${emblemUrl}" style="width: 48px; height: 48px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
+        : '';
+
+      const centerX = (Math.min(...group.points.map(p => p.x)) + Math.max(...group.points.map(p => p.x))) / 2;
+      const centerZ = (Math.min(...group.points.map(p => p.z)) + Math.max(...group.points.map(p => p.z))) / 2;
+
+      stateBordersData[group.state.id + "_label"] = {
+        type: "html",
+        html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 18px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${group.state.name}</div></div>`,
+        position: { x: centerX, y: group.maxY + 30, z: centerZ },
+        anchor: { x: 0.5, y: 0.5 },
+        classes: [],
+        listed: false
+      };
+    });
+
     let originalMarkers: any = {};
     try {
       // Пытаемся получить оригинальные маркеры (игроки, точки), чтобы не стереть их
@@ -1179,6 +1239,13 @@ export class StatesService {
       toggleable: true,
       defaultHide: false,
       markers: bordersData
+    };
+
+    originalMarkers['state_borders_layer'] = {
+      label: "Границы государств",
+      toggleable: true,
+      defaultHide: false,
+      markers: stateBordersData
     };
 
     return originalMarkers;
