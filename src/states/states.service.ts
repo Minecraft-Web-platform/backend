@@ -18,7 +18,9 @@ import { ElectionVoteEntity } from './entities/election-vote.entity';
 import { StateTreasuryItemEntity } from './entities/state-treasury-item.entity';
 import { CityTerritory } from './entities/city-territory.entity';
 import { User } from '../users/entities/user.entity';
-import concaveman from 'concaveman';
+// @ts-ignore
+const concavemanRaw = require('concaveman');
+const concaveman = typeof concavemanRaw === 'function' ? concavemanRaw : concavemanRaw.default;
 import { Account } from '../economy/entities/account.entity';
 import { MinecraftRconService } from '../minecraft-rcon/minecraft-rcon.service';
 import { EventsService } from '../events/events.service';
@@ -70,7 +72,7 @@ export class StatesService {
     private readonly eventsService: EventsService,
     private readonly autoNewsService: AutoNewsService,
     private readonly eventEmitter: EventEmitter2,
-  ) {}
+  ) { }
 
   // --- States ---
   async getAllStates(): Promise<StateEntity[]> {
@@ -108,7 +110,7 @@ export class StatesService {
     // Auto-news about state creation
     if (creatorUsername) {
       await this.autoNewsService.publishStateCreatedNews(savedState.name, creatorUsername);
-      
+
       this.eventEmitter.emit('state.created', {
         initiatorUsername: creatorUsername,
         stateId: savedState.id,
@@ -155,9 +157,9 @@ export class StatesService {
     });
 
     const updatedState = await this.stateRepo.save(state);
-    
+
     this.eventEmitter.emit('state.updated', { stateId: id });
-    
+
     return updatedState;
   }
 
@@ -301,7 +303,7 @@ export class StatesService {
       ...dto,
       mayorUsername: mayor,
     });
-    
+
     const saved = await this.cityRepo.save(city);
 
     if (creatorUsername) {
@@ -954,9 +956,9 @@ export class StatesService {
           }
         }
       }
-      
+
       this.eventEmitter.emit('state.treasury.updated', { stateId });
-      
+
       return { message: 'Сейф успешно оцифрован', items: parsed.items };
     } catch (e) {
       if (e instanceof BadRequestException) throw e;
@@ -1023,7 +1025,7 @@ export class StatesService {
 
   private getConvexHull(points: { x: number, z: number }[]) {
     if (points.length <= 3) return points;
-    
+
     // Сортируем точки (x, затем z)
     const sorted = [...points].sort((a, b) => a.x === b.x ? a.z - b.z : a.x - b.x);
 
@@ -1052,21 +1054,22 @@ export class StatesService {
     return lower.concat(upper);
   }
 
-  private getConcaveHull(points: { x: number, z: number }[]) {
+  private getConcaveHull(points: { x: number, z: number }[], concavity: number = 1.5) {
     if (points.length <= 3) return this.getConvexHull(points);
 
     // Подготавливаем точки для concaveman (массив координат)
     const pointsArray = points.map(p => [p.x, p.z]);
-    
-    // Вычисляем concave hull. concavity=2, lengthThreshold=0 для плотного облегания
-    const hullArray = concaveman(pointsArray, 2, 0);
-    
+
+    // Вычисляем concave hull. Чем больше concavity (например 3, 4, 5), тем "мягче" и более выпуклой будет граница.
+    // Если 1 - граница будет максимально сильно вдавливаться в каждую щель.
+    const hullArray = concaveman(pointsArray, concavity, 0);
+
     return hullArray.map((p: any) => ({ x: p[0], z: p[1] }));
   }
 
   private clusterTerritories(territories: any[], distanceThreshold: number): any[][] {
     if (!territories || territories.length === 0) return [];
-    
+
     const clusters: any[][] = [];
     const visited = new Set<string>();
 
@@ -1086,7 +1089,7 @@ export class StatesService {
 
       const currentCluster = [t];
       visited.add(t.id);
-      
+
       let i = 0;
       while (i < currentCluster.length) {
         const curr = currentCluster[i];
@@ -1112,7 +1115,7 @@ export class StatesService {
     const markersData: Record<string, any> = {};
     const bordersData: Record<string, any> = {};
     const stateBordersData: Record<string, any> = {};
-    
+
     const cityGroups: Record<string, { city: any, territories: any[] }> = {};
     const stateGroups: Record<string, { state: any, territories: any[] }> = {};
 
@@ -1130,7 +1133,7 @@ export class StatesService {
       }
 
       const stateName = t.city.state?.name || 'Независимый город';
-      
+
       let hash = 0;
       for (let i = 0; i < stateName.length; i++) {
         hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
@@ -1140,7 +1143,7 @@ export class StatesService {
         const value = (hash >> (i * 8)) & 0xff;
         hexColor += ('00' + value.toString(16)).substr(-2);
       }
-      
+
       const r = parseInt(hexColor.slice(1, 3), 16) || 255;
       const g = parseInt(hexColor.slice(3, 5), 16) || 0;
       const b = parseInt(hexColor.slice(5, 7), 16) || 0;
@@ -1174,7 +1177,7 @@ export class StatesService {
       clusters.forEach((cluster, index) => {
         if (cluster.length > largestCluster.length) largestCluster = cluster;
 
-        const points: {x: number, z: number}[] = [];
+        const points: { x: number, z: number }[] = [];
         let minY = Infinity;
         let maxY = -Infinity;
 
@@ -1186,7 +1189,8 @@ export class StatesService {
           if (tMax > maxY) maxY = tMax;
         });
 
-        const hull = this.getConcaveHull(points);
+        // Города: concavity = 4 (более плавные границы, меньше вдавливаний)
+        const hull = this.getConcaveHull(points, 4);
         if (hull.length < 3) return;
 
         const stateName = group.city.state?.name || 'Независимый город';
@@ -1194,7 +1198,7 @@ export class StatesService {
         for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
         let hexColor = '#';
         for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
-        
+
         const r = parseInt(hexColor.slice(1, 3), 16) || 255;
         const g = parseInt(hexColor.slice(3, 5), 16) || 0;
         const b = parseInt(hexColor.slice(5, 7), 16) || 0;
@@ -1213,7 +1217,7 @@ export class StatesService {
       });
 
       // Лейбл города вешаем только на самый крупный кластер
-      const labelPoints: {x: number, z: number}[] = [];
+      const labelPoints: { x: number, z: number }[] = [];
       let labelMaxY = -Infinity;
       largestCluster.forEach(t => {
         labelPoints.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
@@ -1224,8 +1228,8 @@ export class StatesService {
       const centerX = (Math.min(...labelPoints.map(p => p.x)) + Math.max(...labelPoints.map(p => p.x))) / 2;
       const centerZ = (Math.min(...labelPoints.map(p => p.z)) + Math.max(...labelPoints.map(p => p.z))) / 2;
 
-      const flagHtml = group.city.flagUrl 
-        ? `<img src="${group.city.flagUrl}" style="width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
+      const flagHtml = group.city.flagUrl
+        ? `<img src="${group.city.flagUrl}" style="width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>`
         : '';
       const stateNameStr = group.city.state?.name || 'Независимый город';
 
@@ -1248,7 +1252,7 @@ export class StatesService {
       clusters.forEach((cluster, index) => {
         if (cluster.length > largestCluster.length) largestCluster = cluster;
 
-        const points: {x: number, z: number}[] = [];
+        const points: { x: number, z: number }[] = [];
         let minY = Infinity;
         let maxY = -Infinity;
 
@@ -1260,7 +1264,8 @@ export class StatesService {
           if (tMax > maxY) maxY = tMax;
         });
 
-        const hull = this.getConcaveHull(points);
+        // Государства: concavity = 2.5 (более плотное прилегание к границам городов)
+        const hull = this.getConcaveHull(points, 2);
         if (hull.length < 3) return;
 
         const stateName = group.state.name;
@@ -1268,7 +1273,7 @@ export class StatesService {
         for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
         let hexColor = '#';
         for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
-        
+
         const r = parseInt(hexColor.slice(1, 3), 16) || 255;
         const g = parseInt(hexColor.slice(3, 5), 16) || 0;
         const b = parseInt(hexColor.slice(5, 7), 16) || 0;
@@ -1286,7 +1291,7 @@ export class StatesService {
         };
       });
 
-      const labelPoints: {x: number, z: number}[] = [];
+      const labelPoints: { x: number, z: number }[] = [];
       let labelMaxY = -Infinity;
       largestCluster.forEach(t => {
         labelPoints.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
@@ -1296,7 +1301,7 @@ export class StatesService {
 
       const emblemUrl = group.state.coatOfArmsUrl || group.state.flagUrl;
       const flagHtml = emblemUrl
-        ? `<img src="${emblemUrl}" style="width: 48px; height: 48px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
+        ? `<img src="${emblemUrl}" style="width: 48px; height: 48px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>`
         : '';
 
       const centerX = (Math.min(...labelPoints.map(p => p.x)) + Math.max(...labelPoints.map(p => p.x))) / 2;
