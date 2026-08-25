@@ -18,6 +18,7 @@ import { ElectionVoteEntity } from './entities/election-vote.entity';
 import { StateTreasuryItemEntity } from './entities/state-treasury-item.entity';
 import { CityTerritory } from './entities/city-territory.entity';
 import { User } from '../users/entities/user.entity';
+import concaveman from 'concaveman';
 import { Account } from '../economy/entities/account.entity';
 import { MinecraftRconService } from '../minecraft-rcon/minecraft-rcon.service';
 import { EventsService } from '../events/events.service';
@@ -1051,6 +1052,18 @@ export class StatesService {
     return lower.concat(upper);
   }
 
+  private getConcaveHull(points: { x: number, z: number }[]) {
+    if (points.length <= 3) return this.getConvexHull(points);
+
+    // Подготавливаем точки для concaveman (массив координат)
+    const pointsArray = points.map(p => [p.x, p.z]);
+    
+    // Вычисляем concave hull. concavity=2, lengthThreshold=0 для плотного облегания
+    const hullArray = concaveman(pointsArray, 2, 0);
+    
+    return hullArray.map((p: any) => ({ x: p[0], z: p[1] }));
+  }
+
   private clusterTerritories(territories: any[], distanceThreshold: number): any[][] {
     if (!territories || territories.length === 0) return [];
     
@@ -1173,7 +1186,7 @@ export class StatesService {
           if (tMax > maxY) maxY = tMax;
         });
 
-        const hull = this.getConvexHull(points);
+        const hull = this.getConcaveHull(points);
         if (hull.length < 3) return;
 
         const stateName = group.city.state?.name || 'Независимый город';
@@ -1247,7 +1260,7 @@ export class StatesService {
           if (tMax > maxY) maxY = tMax;
         });
 
-        const hull = this.getConvexHull(points);
+        const hull = this.getConcaveHull(points);
         if (hull.length < 3) return;
 
         const stateName = group.state.name;
