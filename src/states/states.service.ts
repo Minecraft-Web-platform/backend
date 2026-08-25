@@ -1018,6 +1018,35 @@ export class StatesService {
     return this.territoryRepo.find({
       relations: ['city', 'city.state'],
     });
+  private getConvexHull(points: { x: number, z: number }[]) {
+    if (points.length <= 3) return points;
+    
+    // Сортируем точки (x, затем z)
+    const sorted = [...points].sort((a, b) => a.x === b.x ? a.z - b.z : a.x - b.x);
+
+    const cross = (o: { x: number, z: number }, a: { x: number, z: number }, b: { x: number, z: number }) => {
+      return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x);
+    };
+
+    const lower = [];
+    for (let i = 0; i < sorted.length; i++) {
+      while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], sorted[i]) <= 0) {
+        lower.pop();
+      }
+      lower.push(sorted[i]);
+    }
+
+    const upper = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], sorted[i]) <= 0) {
+        upper.pop();
+      }
+      upper.push(sorted[i]);
+    }
+
+    upper.pop();
+    lower.pop();
+    return lower.concat(upper);
   }
 
   public async getBlueMapMarkers(mapName: string = 'world'): Promise<any> {
@@ -1026,8 +1055,20 @@ export class StatesService {
     });
 
     const markersData: Record<string, any> = {};
+    const bordersData: Record<string, any> = {};
+    
+    const cityGroups: Record<string, { city: any, points: {x: number, z: number}[] }> = {};
 
     territories.forEach(t => {
+      if (!cityGroups[t.city.id]) {
+        cityGroups[t.city.id] = { city: t.city, points: [] };
+      }
+      cityGroups[t.city.id].points.push(
+        { x: t.minX, z: t.minZ },
+        { x: t.maxX, z: t.minZ },
+        { x: t.maxX, z: t.maxZ },
+        { x: t.minX, z: t.maxZ }
+      );
       const stateName = t.city.state?.name || 'Независимый город';
       
       let hash = 0;
@@ -1056,8 +1097,8 @@ export class StatesService {
         ],
         shapeMinY: t.minY ?? -64,
         shapeMaxY: t.maxY ?? 319,
-        fillColor: { r, g, b, a: 0.4 },
-        lineColor: { r, g, b, a: 1.0 },
+        fillColor: { r, g, b, a: 0.15 }, // Делаем приваты прозрачнее
+        lineColor: { r, g, b, a: 0.3 },  // Границы приватов мягкие
         depthTestEnabled: false,
         listed: false // Не дублируем в меню
       };
@@ -1078,6 +1119,33 @@ export class StatesService {
       };
     });
 
+    Object.values(cityGroups).forEach(group => {
+      const hull = this.getConvexHull(group.points);
+      if (hull.length < 3) return;
+
+      const stateName = group.city.state?.name || 'Независимый город';
+      let hash = 0;
+      for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
+      let hexColor = '#';
+      for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
+      
+      const r = parseInt(hexColor.slice(1, 3), 16) || 255;
+      const g = parseInt(hexColor.slice(3, 5), 16) || 0;
+      const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+
+      bordersData[group.city.id + "_border"] = {
+        type: "extrude",
+        position: { x: hull[0].x, y: 64, z: hull[0].z },
+        shape: hull,
+        shapeMinY: -64,
+        shapeMaxY: 319,
+        fillColor: { r, g, b, a: 0.05 }, // Слегка заливаем территорию города
+        lineColor: { r, g, b, a: 1.0 },  // Яркая толстая граница
+        depthTestEnabled: false,
+        listed: false
+      };
+    });
+
     let originalMarkers: any = {};
     try {
       // Пытаемся получить оригинальные маркеры (игроки, точки), чтобы не стереть их
@@ -1089,12 +1157,18 @@ export class StatesService {
       console.error('Failed to fetch original BlueMap markers', e);
     }
 
-    // В BlueMap live/markers.json корневыми ключами являются ID слоев напрямую, без обертки markerSets
     originalMarkers['city_territories_layer'] = {
-      label: "Территории Городов",
+      label: "Приваты (зоны)",
       toggleable: true,
       defaultHide: false,
       markers: markersData
+    };
+
+    originalMarkers['city_borders_layer'] = {
+      label: "Границы городов",
+      toggleable: true,
+      defaultHide: false,
+      markers: bordersData
     };
 
     return originalMarkers;
