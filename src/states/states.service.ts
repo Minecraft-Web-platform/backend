@@ -1030,7 +1030,7 @@ export class StatesService {
       return (a.x - o.x) * (b.z - o.z) - (a.z - o.z) * (b.x - o.x);
     };
 
-    const lower = [];
+    const lower: { x: number, z: number }[] = [];
     for (let i = 0; i < sorted.length; i++) {
       while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], sorted[i]) <= 0) {
         lower.pop();
@@ -1038,7 +1038,7 @@ export class StatesService {
       lower.push(sorted[i]);
     }
 
-    const upper = [];
+    const upper: { x: number, z: number }[] = [];
     for (let i = sorted.length - 1; i >= 0; i--) {
       while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], sorted[i]) <= 0) {
         upper.pop();
