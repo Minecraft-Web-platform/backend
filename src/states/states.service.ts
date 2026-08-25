@@ -1111,20 +1111,6 @@ export class StatesService {
         listed: false // Не дублируем в меню
       };
 
-      const emblemUrl = t.city.flagUrl || t.city.state?.coatOfArmsUrl || t.city.state?.flagUrl;
-      const flagHtml = emblemUrl
-        ? `<img src="${emblemUrl}" style="width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
-        : '';
-
-      // 2. Текстовая метка (HtmlMarker)
-      markersData[t.id + "_label"] = {
-        type: "html",
-        html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 14px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${t.city.name}</div><div style="font-size: 11px; color: #ccc;">${stateName}</div></div>`,
-        position: { x: (t.minX + t.maxX) / 2, y: (t.maxY ?? 64) + 10, z: (t.minZ + t.maxZ) / 2 },
-        anchor: { x: 0.5, y: 0.5 },
-        classes: [],
-        listed: false // Скрываем из списка, чтобы не было гигантского меню и чтобы не нужен был label
-      };
     });
 
     Object.values(cityGroups).forEach(group => {
@@ -1150,6 +1136,22 @@ export class StatesService {
         fillColor: { r, g, b, a: 0.05 }, // Слегка заливаем территорию города
         lineColor: { r, g, b, a: 1.0 },  // Яркая толстая граница
         depthTestEnabled: false,
+        listed: false
+      };
+
+      const flagHtml = group.city.flagUrl 
+        ? `<img src="${group.city.flagUrl}" style="width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
+        : '';
+
+      const centerX = (Math.min(...group.points.map(p => p.x)) + Math.max(...group.points.map(p => p.x))) / 2;
+      const centerZ = (Math.min(...group.points.map(p => p.z)) + Math.max(...group.points.map(p => p.z))) / 2;
+
+      bordersData[group.city.id + "_label"] = {
+        type: "html",
+        html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 14px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${group.city.name}</div><div style="font-size: 11px; color: #ccc;">${stateName}</div></div>`,
+        position: { x: centerX, y: group.maxY + 10, z: centerZ },
+        anchor: { x: 0.5, y: 0.5 },
+        classes: [],
         listed: false
       };
     });
