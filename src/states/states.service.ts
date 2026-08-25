@@ -1018,6 +1018,8 @@ export class StatesService {
     return this.territoryRepo.find({
       relations: ['city', 'city.state'],
     });
+  }
+
   private getConvexHull(points: { x: number, z: number }[]) {
     if (points.length <= 3) return points;
     
