@@ -1051,6 +1051,46 @@ export class StatesService {
     return lower.concat(upper);
   }
 
+  private clusterTerritories(territories: any[], distanceThreshold: number): any[][] {
+    if (!territories || territories.length === 0) return [];
+    
+    const clusters: any[][] = [];
+    const visited = new Set<string>();
+
+    const getCenter = (t: any) => ({
+      x: (t.minX + t.maxX) / 2,
+      z: (t.minZ + t.maxZ) / 2
+    });
+
+    const getDistance = (t1: any, t2: any) => {
+      const c1 = getCenter(t1);
+      const c2 = getCenter(t2);
+      return Math.hypot(c1.x - c2.x, c1.z - c2.z);
+    };
+
+    for (const t of territories) {
+      if (visited.has(t.id)) continue;
+
+      const currentCluster = [t];
+      visited.add(t.id);
+      
+      let i = 0;
+      while (i < currentCluster.length) {
+        const curr = currentCluster[i];
+        for (const other of territories) {
+          if (!visited.has(other.id) && getDistance(curr, other) <= distanceThreshold) {
+            visited.add(other.id);
+            currentCluster.push(other);
+          }
+        }
+        i++;
+      }
+      clusters.push(currentCluster);
+    }
+
+    return clusters;
+  }
+
   public async getBlueMapMarkers(mapName: string = 'world'): Promise<any> {
     const territories = await this.territoryRepo.find({
       relations: ['city', 'city.state'],
@@ -1060,37 +1100,20 @@ export class StatesService {
     const bordersData: Record<string, any> = {};
     const stateBordersData: Record<string, any> = {};
     
-    const cityGroups: Record<string, { city: any, points: {x: number, z: number}[], minY: number, maxY: number }> = {};
-    const stateGroups: Record<string, { state: any, points: {x: number, z: number}[], minY: number, maxY: number }> = {};
+    const cityGroups: Record<string, { city: any, territories: any[] }> = {};
+    const stateGroups: Record<string, { state: any, territories: any[] }> = {};
 
     territories.forEach(t => {
       if (!cityGroups[t.city.id]) {
-        cityGroups[t.city.id] = { city: t.city, points: [], minY: Infinity, maxY: -Infinity };
+        cityGroups[t.city.id] = { city: t.city, territories: [] };
       }
-      cityGroups[t.city.id].points.push(
-        { x: t.minX, z: t.minZ },
-        { x: t.maxX, z: t.minZ },
-        { x: t.maxX, z: t.maxZ },
-        { x: t.minX, z: t.maxZ }
-      );
-
-      const tMinY = t.minY ?? -64;
-      const tMaxY = t.maxY ?? 319;
-      if (tMinY < cityGroups[t.city.id].minY) cityGroups[t.city.id].minY = tMinY;
-      if (tMaxY > cityGroups[t.city.id].maxY) cityGroups[t.city.id].maxY = tMaxY;
+      cityGroups[t.city.id].territories.push(t);
 
       if (t.city.state) {
         if (!stateGroups[t.city.state.id]) {
-          stateGroups[t.city.state.id] = { state: t.city.state, points: [], minY: Infinity, maxY: -Infinity };
+          stateGroups[t.city.state.id] = { state: t.city.state, territories: [] };
         }
-        stateGroups[t.city.state.id].points.push(
-          { x: t.minX, z: t.minZ },
-          { x: t.maxX, z: t.minZ },
-          { x: t.maxX, z: t.maxZ },
-          { x: t.minX, z: t.maxZ }
-        );
-        if (tMinY < stateGroups[t.city.state.id].minY) stateGroups[t.city.state.id].minY = tMinY;
-        if (tMaxY > stateGroups[t.city.state.id].maxY) stateGroups[t.city.state.id].maxY = tMaxY;
+        stateGroups[t.city.state.id].territories.push(t);
       }
 
       const stateName = t.city.state?.name || 'Независимый город';
@@ -1130,42 +1153,73 @@ export class StatesService {
     });
 
     Object.values(cityGroups).forEach(group => {
-      const hull = this.getConvexHull(group.points);
-      if (hull.length < 3) return;
+      const clusters = this.clusterTerritories(group.territories, 800); // 800 блоков для города
+      if (clusters.length === 0) return;
 
-      const stateName = group.city.state?.name || 'Независимый город';
-      let hash = 0;
-      for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
-      let hexColor = '#';
-      for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
-      
-      const r = parseInt(hexColor.slice(1, 3), 16) || 255;
-      const g = parseInt(hexColor.slice(3, 5), 16) || 0;
-      const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+      let largestCluster = clusters[0];
 
-      bordersData[group.city.id + "_border"] = {
-        type: "extrude",
-        position: { x: hull[0].x, y: (group.minY + group.maxY) / 2, z: hull[0].z },
-        shape: hull,
-        shapeMinY: group.minY,
-        shapeMaxY: group.maxY,
-        fillColor: { r, g, b, a: 0.05 }, // Слегка заливаем территорию города
-        lineColor: { r, g, b, a: 1.0 },  // Яркая толстая граница
-        depthTestEnabled: false,
-        listed: false
-      };
+      clusters.forEach((cluster, index) => {
+        if (cluster.length > largestCluster.length) largestCluster = cluster;
+
+        const points: {x: number, z: number}[] = [];
+        let minY = Infinity;
+        let maxY = -Infinity;
+
+        cluster.forEach(t => {
+          points.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
+          const tMin = t.minY ?? -64;
+          const tMax = t.maxY ?? 319;
+          if (tMin < minY) minY = tMin;
+          if (tMax > maxY) maxY = tMax;
+        });
+
+        const hull = this.getConvexHull(points);
+        if (hull.length < 3) return;
+
+        const stateName = group.city.state?.name || 'Независимый город';
+        let hash = 0;
+        for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
+        let hexColor = '#';
+        for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
+        
+        const r = parseInt(hexColor.slice(1, 3), 16) || 255;
+        const g = parseInt(hexColor.slice(3, 5), 16) || 0;
+        const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+
+        bordersData[`${group.city.id}_border_${index}`] = {
+          type: "extrude",
+          position: { x: hull[0].x, y: (minY + maxY) / 2, z: hull[0].z },
+          shape: hull,
+          shapeMinY: minY,
+          shapeMaxY: maxY,
+          fillColor: { r, g, b, a: 0.05 },
+          lineColor: { r, g, b, a: 1.0 },
+          depthTestEnabled: false,
+          listed: false
+        };
+      });
+
+      // Лейбл города вешаем только на самый крупный кластер
+      const labelPoints: {x: number, z: number}[] = [];
+      let labelMaxY = -Infinity;
+      largestCluster.forEach(t => {
+        labelPoints.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
+        const tMax = t.maxY ?? 319;
+        if (tMax > labelMaxY) labelMaxY = tMax;
+      });
+
+      const centerX = (Math.min(...labelPoints.map(p => p.x)) + Math.max(...labelPoints.map(p => p.x))) / 2;
+      const centerZ = (Math.min(...labelPoints.map(p => p.z)) + Math.max(...labelPoints.map(p => p.z))) / 2;
 
       const flagHtml = group.city.flagUrl 
         ? `<img src="${group.city.flagUrl}" style="width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
         : '';
+      const stateNameStr = group.city.state?.name || 'Независимый город';
 
-      const centerX = (Math.min(...group.points.map(p => p.x)) + Math.max(...group.points.map(p => p.x))) / 2;
-      const centerZ = (Math.min(...group.points.map(p => p.z)) + Math.max(...group.points.map(p => p.z))) / 2;
-
-      bordersData[group.city.id + "_label"] = {
+      bordersData[`${group.city.id}_label`] = {
         type: "html",
-        html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 14px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${group.city.name}</div><div style="font-size: 11px; color: #ccc;">${stateName}</div></div>`,
-        position: { x: centerX, y: group.maxY + 10, z: centerZ },
+        html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 14px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${group.city.name}</div><div style="font-size: 11px; color: #ccc;">${stateNameStr}</div></div>`,
+        position: { x: centerX, y: labelMaxY + 10, z: centerZ },
         anchor: { x: 0.5, y: 0.5 },
         classes: [],
         listed: false
@@ -1173,43 +1227,72 @@ export class StatesService {
     });
 
     Object.values(stateGroups).forEach(group => {
-      const hull = this.getConvexHull(group.points);
-      if (hull.length < 3) return;
+      const clusters = this.clusterTerritories(group.territories, 1500); // 1500 блоков для государства
+      if (clusters.length === 0) return;
 
-      const stateName = group.state.name;
-      let hash = 0;
-      for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
-      let hexColor = '#';
-      for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
-      
-      const r = parseInt(hexColor.slice(1, 3), 16) || 255;
-      const g = parseInt(hexColor.slice(3, 5), 16) || 0;
-      const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+      let largestCluster = clusters[0];
 
-      stateBordersData[group.state.id + "_border"] = {
-        type: "extrude",
-        position: { x: hull[0].x, y: (group.minY + group.maxY) / 2, z: hull[0].z },
-        shape: hull,
-        shapeMinY: group.minY,
-        shapeMaxY: group.maxY,
-        fillColor: { r, g, b, a: 0.02 }, // ОЧЕНЬ слабая заливка для всего государства
-        lineColor: { r, g, b, a: 1.0 },
-        depthTestEnabled: false,
-        listed: false
-      };
+      clusters.forEach((cluster, index) => {
+        if (cluster.length > largestCluster.length) largestCluster = cluster;
+
+        const points: {x: number, z: number}[] = [];
+        let minY = Infinity;
+        let maxY = -Infinity;
+
+        cluster.forEach(t => {
+          points.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
+          const tMin = t.minY ?? -64;
+          const tMax = t.maxY ?? 319;
+          if (tMin < minY) minY = tMin;
+          if (tMax > maxY) maxY = tMax;
+        });
+
+        const hull = this.getConvexHull(points);
+        if (hull.length < 3) return;
+
+        const stateName = group.state.name;
+        let hash = 0;
+        for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
+        let hexColor = '#';
+        for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
+        
+        const r = parseInt(hexColor.slice(1, 3), 16) || 255;
+        const g = parseInt(hexColor.slice(3, 5), 16) || 0;
+        const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+
+        stateBordersData[`${group.state.id}_border_${index}`] = {
+          type: "extrude",
+          position: { x: hull[0].x, y: (minY + maxY) / 2, z: hull[0].z },
+          shape: hull,
+          shapeMinY: minY,
+          shapeMaxY: maxY,
+          fillColor: { r, g, b, a: 0.02 }, // ОЧЕНЬ слабая заливка для всего государства
+          lineColor: { r, g, b, a: 1.0 },
+          depthTestEnabled: false,
+          listed: false
+        };
+      });
+
+      const labelPoints: {x: number, z: number}[] = [];
+      let labelMaxY = -Infinity;
+      largestCluster.forEach(t => {
+        labelPoints.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
+        const tMax = t.maxY ?? 319;
+        if (tMax > labelMaxY) labelMaxY = tMax;
+      });
 
       const emblemUrl = group.state.coatOfArmsUrl || group.state.flagUrl;
       const flagHtml = emblemUrl
         ? `<img src="${emblemUrl}" style="width: 48px; height: 48px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
         : '';
 
-      const centerX = (Math.min(...group.points.map(p => p.x)) + Math.max(...group.points.map(p => p.x))) / 2;
-      const centerZ = (Math.min(...group.points.map(p => p.z)) + Math.max(...group.points.map(p => p.z))) / 2;
+      const centerX = (Math.min(...labelPoints.map(p => p.x)) + Math.max(...labelPoints.map(p => p.x))) / 2;
+      const centerZ = (Math.min(...labelPoints.map(p => p.z)) + Math.max(...labelPoints.map(p => p.z))) / 2;
 
-      stateBordersData[group.state.id + "_label"] = {
+      stateBordersData[`${group.state.id}_label`] = {
         type: "html",
         html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 18px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${group.state.name}</div></div>`,
-        position: { x: centerX, y: group.maxY + 30, z: centerZ },
+        position: { x: centerX, y: labelMaxY + 30, z: centerZ },
         anchor: { x: 0.5, y: 0.5 },
         classes: [],
         listed: false
