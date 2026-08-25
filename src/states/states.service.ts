@@ -1062,8 +1062,9 @@ export class StatesService {
         listed: false // Не дублируем в меню
       };
 
-      const flagHtml = t.city.flagUrl 
-        ? `<img src="${t.city.flagUrl}" style="width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
+      const emblemUrl = t.city.flagUrl || t.city.state?.coatOfArmsUrl || t.city.state?.flagUrl;
+      const flagHtml = emblemUrl
+        ? `<img src="${emblemUrl}" style="width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
         : '';
 
       // 2. Текстовая метка (HtmlMarker)
