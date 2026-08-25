@@ -1062,10 +1062,14 @@ export class StatesService {
         listed: false // Не дублируем в меню
       };
 
+      const flagHtml = t.city.flagUrl 
+        ? `<img src="${t.city.flagUrl}" style="width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>` 
+        : '';
+
       // 2. Текстовая метка (HtmlMarker)
       markersData[t.id + "_label"] = {
         type: "html",
-        html: `<div style="color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 14px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${t.city.name}<br><span style="font-size: 11px; color: #ccc;">${stateName}</span></div>`,
+        html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 14px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${t.city.name}</div><div style="font-size: 11px; color: #ccc;">${stateName}</div></div>`,
         position: { x: (t.minX + t.maxX) / 2, y: (t.maxY ?? 64) + 10, z: (t.minZ + t.maxZ) / 2 },
         anchor: { x: 0.5, y: 0.5 },
         classes: [],
