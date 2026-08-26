@@ -1,62 +1,74 @@
-import { Body, Controller, Get, Param, Post, UseGuards, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Delete, Patch, UseGuards, Query, Req, ForbiddenException } from '@nestjs/common';
 import { StatesService } from '../states.service';
 import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
-import { IsInt, IsNotEmpty } from 'class-validator';
+import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
+import { IsInt, IsNotEmpty, IsString, IsBoolean } from 'class-validator';
+import { TerritoriesService } from '../services/territories.service';
+import { AuthenticatedRequest } from '../../auth/types/auth-request.type';
 
 class CreateTerritoryDto {
-  @IsInt()
-  @IsNotEmpty()
-  minX: number;
+  @IsInt() @IsNotEmpty() minX: number;
+  @IsInt() @IsNotEmpty() minY: number;
+  @IsInt() @IsNotEmpty() minZ: number;
+  @IsInt() @IsNotEmpty() maxX: number;
+  @IsInt() @IsNotEmpty() maxY: number;
+  @IsInt() @IsNotEmpty() maxZ: number;
+  
+  @IsString() @IsNotEmpty() ownerType: 'player' | 'company' | 'city' | 'state';
+  @IsString() @IsNotEmpty() ownerId: string;
+  @IsString() @IsNotEmpty() cityId: string;
+}
 
-  @IsInt()
-  @IsNotEmpty()
-  minY: number;
-
-  @IsInt()
-  @IsNotEmpty()
-  minZ: number;
-
-  @IsInt()
-  @IsNotEmpty()
-  maxX: number;
-
-  @IsInt()
-  @IsNotEmpty()
-  maxY: number;
-
-  @IsInt()
-  @IsNotEmpty()
-  maxZ: number;
+class ToggleVisibilityDto {
+  @IsBoolean() @IsNotEmpty() isHiddenOnMap: boolean;
 }
 
 @Controller('territories')
 export class TerritoriesController {
-  constructor(private readonly statesService: StatesService) {}
+  constructor(private readonly territoriesService: TerritoriesService) {}
 
   @Get()
   async getAllTerritories() {
-    return this.statesService.getAllTerritories();
+    return this.territoriesService.getAllTerritories();
+  }
+
+  @Get('profiles/:username')
+  async getProfilesForPlayer(@Param('username') username: string) {
+    return this.territoriesService.getProfilesForPlayer(username);
+  }
+
+  @Get('surveyor-data/:username')
+  async getSurveyorData(@Param('username') username: string) {
+    return this.territoriesService.getSurveyorDataForPlayer(username);
   }
 
   @Get('bluemap-markers')
   async getBlueMapMarkers(@Query('map') mapName?: string) {
-    return this.statesService.getBlueMapMarkers(mapName);
+    return this.territoriesService.getBlueMapMarkers(mapName);
   }
 
   @UseGuards(ModIpGuard)
-  @Post('city/:id')
-  async createCityTerritory(
-    @Param('id') cityId: string,
-    @Body() dto: CreateTerritoryDto
-  ) {
-    return this.statesService.addCityTerritory(
-      cityId,
-      dto.minX,
-      dto.minY,
-      dto.minZ,
-      dto.maxX,
-      dto.maxY,
-      dto.maxZ
-    );
+  @Post()
+  async createTerritory(@Body() dto: CreateTerritoryDto) {
+    return this.territoriesService.addTerritory(dto);
+  }
+
+  @UseGuards(ModIpGuard)
+  @Delete('ingame/:id')
+  async deleteTerritoryInGame(@Param('id') territoryId: string) {
+    return this.territoriesService.deleteTerritoryMod(territoryId);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Delete(':id')
+  async deleteTerritoryWeb(@Req() req: AuthenticatedRequest, @Param('id') territoryId: string) {
+    return this.territoriesService.deleteTerritoryWeb(territoryId, req.user);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Patch(':id/visibility')
+  async toggleVisibility(@Req() req: AuthenticatedRequest, @Param('id') territoryId: string, @Body() dto: ToggleVisibilityDto) {
+    return this.territoriesService.toggleVisibility(territoryId, dto.isHiddenOnMap, req.user);
   }
 }
+

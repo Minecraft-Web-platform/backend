@@ -1,0 +1,331 @@
+  public invalidateBlueMapCache() {
+    this.blueMapMarkersCache = {};
+    this.blueMapMarkersCacheTime = {};
+  }
+
+  public async addCityTerritory(
+    cityId: string,
+    minX: number,
+    minY: number,
+    minZ: number,
+    maxX: number,
+    maxY: number,
+    maxZ: number,
+  ) {
+    const city = await this.cityRepo.findOne({ where: { id: cityId } });
+    if (!city) {
+      throw new NotFoundException('Город не найден');
+    }
+
+    // Ensure min is actually min and max is max
+    const actualMinX = Math.min(minX, maxX);
+    const actualMaxX = Math.max(minX, maxX);
+    const actualMinY = Math.min(minY, maxY);
+    const actualMaxY = Math.max(minY, maxY);
+    const actualMinZ = Math.min(minZ, maxZ);
+    const actualMaxZ = Math.max(minZ, maxZ);
+
+    // AABB Collision check
+    const overlapping = await this.territoryRepo
+      .createQueryBuilder('t')
+      .where(':minX <= t.maxX', { minX: actualMinX })
+      .andWhere(':maxX >= t.minX', { maxX: actualMaxX })
+      .andWhere(':minY <= t.maxY', { minY: actualMinY })
+      .andWhere(':maxY >= t.minY', { maxY: actualMaxY })
+      .andWhere(':minZ <= t.maxZ', { minZ: actualMinZ })
+      .andWhere(':maxZ >= t.minZ', { maxZ: actualMaxZ })
+      .getOne();
+
+    if (overlapping) {
+      throw new BadRequestException('Указанная зона пересекается с уже существующей территорией');
+    }
+
+    const territory = this.territoryRepo.create({
+      cityId,
+      minX: actualMinX,
+      minY: actualMinY,
+      minZ: actualMinZ,
+      maxX: actualMaxX,
+      maxY: actualMaxY,
+      maxZ: actualMaxZ,
+    });
+
+    const saved = await this.territoryRepo.save(territory);
+    this.invalidateBlueMapCache();
+    return saved;
+  }
+
+  public async getAllTerritories() {
+    return this.territoryRepo.find({
+      relations: ['city', 'city.state'],
+    });
+  }
+
+  public async getBlueMapMarkers(mapName: string = 'world'): Promise<any> {
+    const now = Date.now();
+    if (this.blueMapMarkersCache[mapName] && (now - this.blueMapMarkersCacheTime[mapName]) < this.CACHE_TTL) {
+      return this.blueMapMarkersCache[mapName];
+    }
+
+    const territories = await this.territoryRepo.find({
+      relations: ['city', 'city.state'],
+    });
+
+    const markersData: Record<string, any> = {};
+    const bordersData: Record<string, any> = {};
+    const stateBordersData: Record<string, any> = {};
+
+    const cityGroups: Record<string, { city: any, territories: any[] }> = {};
+    const stateGroups: Record<string, { state: any, territories: any[] }> = {};
+
+    territories.forEach(t => {
+      if (!cityGroups[t.city.id]) {
+        cityGroups[t.city.id] = { city: t.city, territories: [] };
+      }
+      cityGroups[t.city.id].territories.push(t);
+
+      if (t.city.state) {
+        if (!stateGroups[t.city.state.id]) {
+          stateGroups[t.city.state.id] = { state: t.city.state, territories: [] };
+        }
+        stateGroups[t.city.state.id].territories.push(t);
+      }
+
+      const stateName = t.city.state?.name || 'Независимый город';
+
+      let hash = 0;
+      for (let i = 0; i < stateName.length; i++) {
+        hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      let hexColor = '#';
+      for (let i = 0; i < 3; i++) {
+        const value = (hash >> (i * 8)) & 0xff;
+        hexColor += ('00' + value.toString(16)).substr(-2);
+      }
+
+      const r = parseInt(hexColor.slice(1, 3), 16) || 255;
+      const g = parseInt(hexColor.slice(3, 5), 16) || 0;
+      const b = parseInt(hexColor.slice(5, 7), 16) || 0;
+
+      // 1. 3D Зона (без label, чтобы избежать бага LabelPopup при клике)
+      markersData[t.id + "_zone"] = {
+        type: "extrude",
+        position: { x: (t.minX + t.maxX) / 2, y: t.maxY ?? 64, z: (t.minZ + t.maxZ) / 2 },
+        shape: [
+          { x: t.minX, z: t.minZ },
+          { x: t.maxX, z: t.minZ },
+          { x: t.maxX, z: t.maxZ },
+          { x: t.minX, z: t.maxZ }
+        ],
+        shapeMinY: t.minY ?? -64,
+        shapeMaxY: t.maxY ?? 319,
+        fillColor: { r, g, b, a: 0.15 }, // Делаем приваты прозрачнее
+        lineColor: { r, g, b, a: 0.3 },  // Границы приватов мягкие
+        depthTestEnabled: false,
+        listed: false // Не дублируем в меню
+      };
+
+    });
+
+    Object.values(cityGroups).forEach(group => {
+      const clusters = this.clusterTerritories(group.territories, 800); // 800 блоков для города
+      if (clusters.length === 0) return;
+
+      let largestCluster = clusters[0];
+
+      clusters.forEach((cluster, index) => {
+        if (cluster.length > largestCluster.length) largestCluster = cluster;
+
+        const points: { x: number, z: number }[] = [];
+        let minY = Infinity;
+        let maxY = -Infinity;
+
+        cluster.forEach(t => {
+          points.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
+          const tMin = t.minY ?? -64;
+          const tMax = t.maxY ?? 319;
+          if (tMin < minY) minY = tMin;
+          if (tMax > maxY) maxY = tMax;
+        });
+
+        // Города: concavity = 4 (более плавные границы, меньше вдавливаний)
+        const hull = this.getConcaveHull(points, 4);
+        if (hull.length < 3) return;
+
+        let r, g, b;
+        if (group.city.color && /^#([0-9A-F]{3}){1,2}$/i.test(group.city.color)) {
+          const hex = group.city.color;
+          r = parseInt(hex.length === 4 ? hex.slice(1, 2).repeat(2) : hex.slice(1, 3), 16);
+          g = parseInt(hex.length === 4 ? hex.slice(2, 3).repeat(2) : hex.slice(3, 5), 16);
+          b = parseInt(hex.length === 4 ? hex.slice(3, 4).repeat(2) : hex.slice(5, 7), 16);
+        } else {
+          const stateName = group.city.state?.name || 'Независимый город';
+          let hash = 0;
+          for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
+          let hexColor = '#';
+          for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
+          r = parseInt(hexColor.slice(1, 3), 16) || 255;
+          g = parseInt(hexColor.slice(3, 5), 16) || 0;
+          b = parseInt(hexColor.slice(5, 7), 16) || 0;
+        }
+
+        bordersData[`${group.city.id}_border_${index}`] = {
+          type: "extrude",
+          position: { x: hull[0].x, y: (minY + maxY) / 2, z: hull[0].z },
+          shape: hull,
+          shapeMinY: minY,
+          shapeMaxY: maxY,
+          fillColor: { r, g, b, a: 0.05 },
+          lineColor: { r, g, b, a: 1.0 },
+          depthTestEnabled: false,
+          listed: false
+        };
+      });
+
+      // Лейбл города вешаем только на самый крупный кластер
+      const labelPoints: { x: number, z: number }[] = [];
+      let labelMaxY = -Infinity;
+      largestCluster.forEach(t => {
+        labelPoints.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
+        const tMax = t.maxY ?? 319;
+        if (tMax > labelMaxY) labelMaxY = tMax;
+      });
+
+      const centerX = (Math.min(...labelPoints.map(p => p.x)) + Math.max(...labelPoints.map(p => p.x))) / 2;
+      const centerZ = (Math.min(...labelPoints.map(p => p.z)) + Math.max(...labelPoints.map(p => p.z))) / 2;
+
+      const flagHtml = group.city.flagUrl
+        ? `<img src="${group.city.flagUrl}" style="width: 32px; height: 32px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>`
+        : '';
+      const stateNameStr = group.city.state?.name || 'Независимый город';
+
+      bordersData[`${group.city.id}_label`] = {
+        type: "html",
+        html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 14px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${group.city.name}</div><div style="font-size: 11px; color: #ccc;">${stateNameStr}</div></div>`,
+        position: { x: centerX, y: labelMaxY + 10, z: centerZ },
+        anchor: { x: 0.5, y: 0.5 },
+        classes: [],
+        listed: false
+      };
+    });
+
+    Object.values(stateGroups).forEach(group => {
+      const clusters = this.clusterTerritories(group.territories, 1500); // 1500 блоков для государства
+      if (clusters.length === 0) return;
+
+      let largestCluster = clusters[0];
+
+      clusters.forEach((cluster, index) => {
+        if (cluster.length > largestCluster.length) largestCluster = cluster;
+
+        const points: { x: number, z: number }[] = [];
+        let minY = Infinity;
+        let maxY = -Infinity;
+
+        cluster.forEach(t => {
+          points.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
+          const tMin = t.minY ?? -64;
+          const tMax = t.maxY ?? 319;
+          if (tMin < minY) minY = tMin;
+          if (tMax > maxY) maxY = tMax;
+        });
+
+        // Государства: concavity = 2.5 (более плотное прилегание к границам городов)
+        const hull = this.getConcaveHull(points, 2);
+        if (hull.length < 3) return;
+
+        let r, g, b;
+        if (group.state.color && /^#([0-9A-F]{3}){1,2}$/i.test(group.state.color)) {
+          const hex = group.state.color;
+          r = parseInt(hex.length === 4 ? hex.slice(1, 2).repeat(2) : hex.slice(1, 3), 16);
+          g = parseInt(hex.length === 4 ? hex.slice(2, 3).repeat(2) : hex.slice(3, 5), 16);
+          b = parseInt(hex.length === 4 ? hex.slice(3, 4).repeat(2) : hex.slice(5, 7), 16);
+        } else {
+          const stateName = group.state.name;
+          let hash = 0;
+          for (let i = 0; i < stateName.length; i++) hash = stateName.charCodeAt(i) + ((hash << 5) - hash);
+          let hexColor = '#';
+          for (let i = 0; i < 3; i++) hexColor += ('00' + ((hash >> (i * 8)) & 0xff).toString(16)).substr(-2);
+          r = parseInt(hexColor.slice(1, 3), 16) || 255;
+          g = parseInt(hexColor.slice(3, 5), 16) || 0;
+          b = parseInt(hexColor.slice(5, 7), 16) || 0;
+        }
+
+        stateBordersData[`${group.state.id}_border_${index}`] = {
+          type: "extrude",
+          position: { x: hull[0].x, y: (minY + maxY) / 2, z: hull[0].z },
+          shape: hull,
+          shapeMinY: minY,
+          shapeMaxY: maxY,
+          fillColor: { r, g, b, a: 0.02 }, // ОЧЕНЬ слабая заливка для всего государства
+          lineColor: { r, g, b, a: 1.0 },
+          depthTestEnabled: false,
+          listed: false
+        };
+      });
+
+      const labelPoints: { x: number, z: number }[] = [];
+      let labelMaxY = -Infinity;
+      largestCluster.forEach(t => {
+        labelPoints.push({ x: t.minX, z: t.minZ }, { x: t.maxX, z: t.minZ }, { x: t.maxX, z: t.maxZ }, { x: t.minX, z: t.maxZ });
+        const tMax = t.maxY ?? 319;
+        if (tMax > labelMaxY) labelMaxY = tMax;
+      });
+
+      const emblemUrl = group.state.coatOfArmsUrl || group.state.flagUrl;
+      const flagHtml = emblemUrl
+        ? `<img src="${emblemUrl}" style="width: 48px; height: 48px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>`
+        : '';
+
+      const centerX = (Math.min(...labelPoints.map(p => p.x)) + Math.max(...labelPoints.map(p => p.x))) / 2;
+      const centerZ = (Math.min(...labelPoints.map(p => p.z)) + Math.max(...labelPoints.map(p => p.z))) / 2;
+
+      stateBordersData[`${group.state.id}_label`] = {
+        type: "html",
+        html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 18px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${group.state.name}</div></div>`,
+        position: { x: centerX, y: labelMaxY + 30, z: centerZ },
+        anchor: { x: 0.5, y: 0.5 },
+        classes: [],
+        listed: false
+      };
+    });
+
+    let originalMarkers: any = {};
+    try {
+      // Пытаемся получить оригинальные маркеры (игроки, точки), чтобы не стереть их
+      const res = await fetch(`http://minecraft_server:8100/maps/${mapName}/live/markers.json`);
+      if (res.ok) {
+        originalMarkers = await res.json();
+      }
+    } catch (e) {
+      console.error('Failed to fetch original BlueMap markers', e);
+    }
+
+    originalMarkers['city_zones_layer'] = {
+      label: "Приваты (зоны)",
+      toggleable: true,
+      defaultHidden: true,
+      defaultHide: true,
+      markers: markersData
+    };
+
+    originalMarkers['city_borders_layer_v2'] = {
+      label: "Границы городов",
+      toggleable: true,
+      defaultHidden: true,
+      defaultHide: true,
+      markers: bordersData
+    };
+
+    originalMarkers['state_borders_layer'] = {
+      label: "Границы государств",
+      toggleable: true,
+      defaultHide: false,
+      markers: stateBordersData
+    };
+
+    this.blueMapMarkersCache[mapName] = originalMarkers;
+    this.blueMapMarkersCacheTime[mapName] = now;
+    return originalMarkers;
+  }
+

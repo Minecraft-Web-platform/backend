@@ -119,6 +119,4 @@ export class StatesController {
     }
     return this.statesService.digitizeTreasury(id, 'state_reserve');
   }
-
-
 }

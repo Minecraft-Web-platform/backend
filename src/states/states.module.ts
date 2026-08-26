@@ -17,14 +17,19 @@ import { ElectionEntity } from './entities/election.entity';
 import { ElectionCandidateEntity } from './entities/election-candidate.entity';
 import { ElectionVoteEntity } from './entities/election-vote.entity';
 import { StreetEntity } from './entities/street.entity';
-import { CityTerritory } from './entities/city-territory.entity';
+import { TerritoryEntity } from './entities/territory.entity';
 import { User } from '../users/entities/user.entity';
 import { Account } from '../economy/entities/account.entity';
+import { Company } from '../economy/entities/company.entity';
 import { OwnJwtModule } from '../own-jwt/own-jwt.module';
 import { UsersModule } from '../users/users.module';
 import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
 import { EventsModule } from '../events/events.module';
 import { NewsModule } from '../news/news.module';
+
+import { CitiesService } from './services/cities.service';
+import { ElectionsService } from './services/elections.service';
+import { TerritoriesService } from './services/territories.service';
 
 @Module({
   imports: [
@@ -39,9 +44,10 @@ import { NewsModule } from '../news/news.module';
       ElectionCandidateEntity,
       ElectionVoteEntity,
       StreetEntity,
-      CityTerritory,
+      TerritoryEntity,
       User,
       Account,
+      Company,
     ]),
     OwnJwtModule,
     UsersModule,
@@ -49,14 +55,8 @@ import { NewsModule } from '../news/news.module';
     EventsModule,
     NewsModule,
   ],
-  providers: [StatesService, StreetsService],
-  controllers: [
-    StatesController,
-    CitiesController,
-    ElectionsController,
-    StreetsController,
-    TerritoriesController,
-  ],
-  exports: [StatesService],
+  providers: [StatesService, StreetsService, CitiesService, ElectionsService, TerritoriesService],
+  controllers: [StatesController, CitiesController, ElectionsController, StreetsController, TerritoriesController],
+  exports: [StatesService, CitiesService, ElectionsService, TerritoriesService],
 })
 export class StatesModule {}

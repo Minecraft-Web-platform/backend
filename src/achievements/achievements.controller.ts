@@ -1,16 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-  Sse,
-  MessageEvent,
-  Req,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Sse, MessageEvent, Req } from '@nestjs/common';
 import { AchievementsService } from './achievements.service';
 import { CreateAchievementDto, UpdateAchievementDto, GrantAchievementDto } from './dto/achievements.dto';
 import { AdminGuard } from '../auth/guards/is-admin.guard';
@@ -75,7 +63,9 @@ export class AchievementsController {
     return fromEvent(this.eventEmitter, 'achievement.granted').pipe(
       filter((payload: any) => {
         const matches = payload.username_lower === username;
-        console.log(`SSE event intercepted. Payload user: ${payload.username_lower}, Target user: ${username}, Matches: ${matches}`);
+        console.log(
+          `SSE event intercepted. Payload user: ${payload.username_lower}, Target user: ${username}, Matches: ${matches}`,
+        );
         return matches;
       }),
       map((payload: any) => {

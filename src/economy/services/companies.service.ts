@@ -150,7 +150,7 @@ export class CompaniesService {
     this.eventEmitter.emit('company.created', { initiatorUsername: username.toLowerCase() });
 
     const userCompaniesCount = await this.companyRepository.count({
-      where: { ownerUsername: username.toLowerCase() }
+      where: { ownerUsername: username.toLowerCase() },
     });
 
     if (userCompaniesCount === 5) {

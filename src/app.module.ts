@@ -44,4 +44,4 @@ import { AchievementsModule } from './achievements/achievements.module';
     AchievementsModule,
   ],
 })
-export class AppModule { }
+export class AppModule {}

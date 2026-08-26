@@ -21,37 +21,41 @@ import {
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 
 import { AuthenticatedRequest } from '../auth/types/auth-request.type';
+import { CitiesService } from './services/cities.service';
 
 @Controller('cities')
 export class CitiesController {
-  constructor(private readonly statesService: StatesService) {}
+  constructor(
+    private readonly statesService: StatesService,
+    private readonly citiesService: CitiesService,
+  ) {}
 
   @Get()
   async getAllCities(@Query('stateId') stateId?: string) {
-    return this.statesService.getAllCities(stateId);
+    return this.citiesService.getAllCities(stateId);
   }
 
   @Get(':id')
   async getCityById(@Param('id') id: string) {
-    return this.statesService.getCityById(id);
+    return this.citiesService.getCityById(id);
   }
 
   @Post()
   @UseGuards(AccessTokenGuard)
   async createCity(@Body() dto: CreateCityDto, @Req() req: AuthenticatedRequest) {
-    return this.statesService.createCity(dto, req.user?.username_lower);
+    return this.citiesService.createCity(dto, req.user?.username_lower);
   }
 
   @Put(':id')
   @UseGuards(AccessTokenGuard)
   async updateCity(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: UpdateCityDto) {
-    return this.statesService.updateCity(id, dto, req.user?.username_lower);
+    return this.citiesService.updateCity(id, dto, req.user?.username_lower);
   }
 
   @Delete(':id')
   @UseGuards(AccessTokenGuard)
   async deleteCity(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.statesService.deleteCity(id, req.user?.username_lower);
+    return this.citiesService.deleteCity(id, req.user?.username_lower);
   }
 
   @Post(':id/resign')
@@ -60,31 +64,31 @@ export class CitiesController {
     if (!req.user?.username_lower) {
       throw new UnauthorizedException();
     }
-    return this.statesService.resignMayor(id, req.user.username_lower);
+    return this.citiesService.resignMayor(id, req.user.username_lower);
   }
 
   @Post(':id/capital')
   @UseGuards(AccessTokenGuard)
   async setCapital(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.statesService.setCityCapital(id, req.user?.username_lower);
+    return this.citiesService.setCityCapital(id, req.user?.username_lower);
   }
 
   @Post(':id/images')
   @UseGuards(AccessTokenGuard)
   async addImage(@Param('id') id: string, @Body('imageUrl') imageUrl: string, @Req() req: AuthenticatedRequest) {
-    return this.statesService.addCityImage(id, imageUrl, req.user?.username_lower);
+    return this.citiesService.addCityImage(id, imageUrl, req.user?.username_lower);
   }
 
   @Delete(':id/images')
   @UseGuards(AccessTokenGuard)
   async removeImage(@Param('id') id: string, @Body('imageUrl') imageUrl: string, @Req() req: AuthenticatedRequest) {
-    return this.statesService.removeCityImage(id, imageUrl, req.user?.username_lower);
+    return this.citiesService.removeCityImage(id, imageUrl, req.user?.username_lower);
   }
 
   // --- Citizenship Requests ---
   @Get(':id/requests')
   async getRequests(@Param('id') id: string) {
-    return this.statesService.getRequestsForCity(id);
+    return this.citiesService.getRequestsForCity(id);
   }
 
   @Post(':id/requests')
@@ -95,7 +99,7 @@ export class CitiesController {
     @Req() req: AuthenticatedRequest,
   ) {
     const username = req.user?.username_lower || 'Guest';
-    return this.statesService.createCitizenshipRequest(username, {
+    return this.citiesService.createCitizenshipRequest(username, {
       ...dto,
       cityId: id,
     });
@@ -112,12 +116,12 @@ export class CitiesController {
     if (!req.user?.username_lower) {
       throw new UnauthorizedException();
     }
-    return this.statesService.reviewCitizenshipRequest(requestId, dto, req.user.username_lower);
+    return this.citiesService.reviewCitizenshipRequest(requestId, dto, req.user.username_lower);
   }
 
   @Post(':id/leave')
   @UseGuards(AccessTokenGuard)
   async leaveCity(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.statesService.leaveCity(id, req.user?.username_lower);
+    return this.citiesService.leaveCity(id, req.user?.username_lower);
   }
 }

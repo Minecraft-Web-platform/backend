@@ -40,7 +40,7 @@ export class CompanyServicesService {
     private readonly transferRepo: Repository<Transfer>,
     private readonly economyService: EconomyService,
     private readonly eventEmitter: EventEmitter2,
-  ) { }
+  ) {}
 
   public async getServicesForCompany(companyId: string): Promise<CompanyService[]> {
     return this.serviceRepo.find({

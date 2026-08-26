@@ -25,7 +25,7 @@ export class AchievementsListener implements OnModuleInit {
       }
 
       const username = payload.initiatorUsername;
-      
+
       // Find achievements that trigger on this event
       const achievements = await self.achievementRepo.find({
         where: { triggerEvent: eventName },
@@ -37,9 +37,12 @@ export class AchievementsListener implements OnModuleInit {
             username,
             achievementId: achievement.id,
           });
-          self.logger.log(`Automatically granted achievement "${achievement.title}" to ${username} for event ${eventName}`);
+          self.logger.log(
+            `Automatically granted achievement "${achievement.title}" to ${username} for event ${eventName}`,
+          );
         } catch (err: any) {
-          if (err.status !== 409) { // Ignore ConflictException (already has achievement)
+          if (err.status !== 409) {
+            // Ignore ConflictException (already has achievement)
             self.logger.error(`Error granting achievement automatically: ${err.message}`);
           }
         }

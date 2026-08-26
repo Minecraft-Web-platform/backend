@@ -209,7 +209,9 @@ export class StockExchangeService {
 
     this.eventEmitter.emit('company.ipo', { initiatorUsername: username.toLowerCase() });
 
-    const userCompanies = await this.companyRepository.find({ where: { ownerUsername: username.toLowerCase(), isPublic: true } });
+    const userCompanies = await this.companyRepository.find({
+      where: { ownerUsername: username.toLowerCase(), isPublic: true },
+    });
     if (userCompanies.length === 5) {
       this.eventEmitter.emit('company.ipo.fifth', { initiatorUsername: username.toLowerCase() });
     }

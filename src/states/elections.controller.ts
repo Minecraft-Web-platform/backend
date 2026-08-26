@@ -4,25 +4,29 @@ import { CreateElectionDto, NominateCandidateDto, VoteDto } from './dto/states.d
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 import { AdminGuard } from '../auth/guards/is-admin.guard';
 import { AuthenticatedRequest } from '../auth/types/auth-request.type';
+import { ElectionsService } from './services/elections.service';
 
 @Controller('elections')
 export class ElectionsController {
-  constructor(private readonly statesService: StatesService) {}
+  constructor(
+    private readonly statesService: StatesService,
+    private readonly electionsService: ElectionsService,
+  ) {}
 
   @Get()
   async getAllElections(@Query('targetType') targetType?: string, @Query('targetId') targetId?: string) {
-    return this.statesService.getAllElections(targetType, targetId);
+    return this.electionsService.getAllElections(targetType, targetId);
   }
 
   @Get(':id')
   async getElectionById(@Param('id') id: string) {
-    return this.statesService.getElectionById(id);
+    return this.electionsService.getElectionById(id);
   }
 
   @Post()
   @UseGuards(AccessTokenGuard, AdminGuard)
   async createElection(@Body() dto: CreateElectionDto) {
-    return this.statesService.createElection(dto);
+    return this.electionsService.createElection(dto);
   }
 
   @Post(':id/nominate')
@@ -33,13 +37,13 @@ export class ElectionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     const username = req.user?.username_lower || 'Candidate';
-    return this.statesService.nominateCandidate(id, username, dto);
+    return this.electionsService.nominateCandidate(id, username, dto);
   }
 
   @Post(':id/vote')
   @UseGuards(AccessTokenGuard)
   async voteInElection(@Param('id') id: string, @Body() dto: VoteDto, @Req() req: AuthenticatedRequest) {
     const username = req.user?.username_lower || 'Voter';
-    return this.statesService.voteInElection(id, username, dto);
+    return this.electionsService.voteInElection(id, username, dto);
   }
 }

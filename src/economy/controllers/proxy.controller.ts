@@ -15,7 +15,7 @@ export class ProxyController {
       }
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      
+
       res.set('Content-Type', response.headers.get('content-type') || 'image/webp');
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cache-Control', 'public, max-age=31536000');

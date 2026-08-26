@@ -491,9 +491,9 @@ export class EconomyService {
     // Achievements check
     const userAccounts = await this.accountRepository.find({ where: { ownerUsername: username.toLowerCase() } });
     if (userAccounts.length > 0) {
-      const accountIds = userAccounts.map(a => a.id);
+      const accountIds = userAccounts.map((a) => a.id);
       const cardsCount = await this.cardRepository.count({
-        where: { accountId: In(accountIds) }
+        where: { accountId: In(accountIds) },
       });
       if (cardsCount === 1) {
         this.eventEmitter.emit('card.created.first', { initiatorUsername: username.toLowerCase() });
@@ -708,11 +708,13 @@ export class EconomyService {
             this.eventEmitter.emit('economy.monopolist', { initiatorUsername: company.ownerUsername.toLowerCase() });
 
             // Проверка иностранной юрисдикции
-            const owner = await this.userRepository.findOne({ where: { username_lower: company.ownerUsername.toLowerCase() } });
+            const owner = await this.userRepository.findOne({
+              where: { username_lower: company.ownerUsername.toLowerCase() },
+            });
             // Иностранная юрисдикция, если игрок не состоит в том же государстве, где зарегистрирована компания
             // (или если компания в государстве, а игрок вообще без государства)
             if (owner && company.stateId && owner.stateId !== company.stateId) {
-               this.eventEmitter.emit('economy.corporation', { initiatorUsername: company.ownerUsername.toLowerCase() });
+              this.eventEmitter.emit('economy.corporation', { initiatorUsername: company.ownerUsername.toLowerCase() });
             }
           }
         }
@@ -725,7 +727,7 @@ export class EconomyService {
   public async getMyTransfers(username: string): Promise<any[]> {
     const { accounts: myAccounts } = await this.getMyAccounts(username);
     const lower = username.toLowerCase();
-    
+
     // Check if user is leader or treasurer to show all state transactions
     const state = await this.stateRepository
       .createQueryBuilder('state')
@@ -993,7 +995,7 @@ export class EconomyService {
             depositedValue += 0.01 * item.count;
           } else {
             throw new BadRequestException(
-              `Предмет ${item.itemId} не является валютой этого счета. Банкомат принимает только валюту.`
+              `Предмет ${item.itemId} не является валютой этого счета. Банкомат принимает только валюту.`,
             );
           }
         }

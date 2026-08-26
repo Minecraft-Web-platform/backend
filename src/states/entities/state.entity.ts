@@ -18,6 +18,9 @@ export class StateEntity {
   @Column({ name: 'flag_url', type: 'varchar', length: 500, nullable: true })
   flagUrl: string | null;
 
+  @Column({ type: 'varchar', length: 9, nullable: true })
+  color?: string | null;
+
   @Column({ name: 'coat_of_arms_url', type: 'varchar', length: 500, nullable: true })
   coatOfArmsUrl?: string | null;
 

@@ -58,6 +58,10 @@ export class CreateStateDto {
   @IsString()
   @IsOptional()
   treasuryAccountNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  color?: string;
 }
 
 export class UpdateStateDto {
@@ -116,6 +120,10 @@ export class UpdateStateDto {
   @IsString()
   @IsOptional()
   treasuryAccountNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  color?: string;
 }
 
 export class CreateCityDto {
@@ -141,6 +149,10 @@ export class CreateCityDto {
   @IsString()
   @IsOptional()
   treasuryAccountNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  color?: string;
 }
 
 export class UpdateCityDto {
@@ -172,6 +184,10 @@ export class UpdateCityDto {
   @IsString({ each: true })
   @IsOptional()
   images?: string[];
+
+  @IsString()
+  @IsOptional()
+  color?: string;
 }
 
 export class SetDiplomacyDto {

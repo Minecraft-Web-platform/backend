@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, Pri
 import { StateEntity } from './state.entity';
 import { User } from '../../users/entities/user.entity';
 import { CitizenshipRequestEntity } from './citizenship-request.entity';
-import { CityTerritory } from './city-territory.entity';
+import { TerritoryEntity } from './territory.entity';
 
 @Entity('cities')
 export class CityEntity {
@@ -17,6 +17,9 @@ export class CityEntity {
 
   @Column({ name: 'flag_url', type: 'varchar', length: 500, nullable: true })
   flagUrl: string | null;
+
+  @Column({ type: 'varchar', length: 9, nullable: true })
+  color?: string | null;
 
   @Column({ name: 'mayor_username', type: 'varchar', length: 255, nullable: true })
   mayorUsername: string | null;
@@ -46,6 +49,6 @@ export class CityEntity {
   @OneToMany(() => CitizenshipRequestEntity, (req) => req.city, { cascade: true })
   citizenshipRequests?: CitizenshipRequestEntity[];
 
-  @OneToMany(() => CityTerritory, (t) => t.city, { cascade: true })
-  territories?: CityTerritory[];
+  @OneToMany(() => TerritoryEntity, (t) => t.city, { cascade: true })
+  territories?: TerritoryEntity[];
 }

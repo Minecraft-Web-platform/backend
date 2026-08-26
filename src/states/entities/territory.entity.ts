@@ -1,17 +1,26 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { CityEntity } from './city.entity';
 
-@Entity('city_territories')
-export class CityTerritory {
+@Entity('territories')
+export class TerritoryEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @ManyToOne(() => CityEntity, (city) => city.territories, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'city_id' })
-  city: CityEntity;
+  city?: CityEntity;
 
-  @Column({ name: 'city_id' })
-  cityId: string;
+  @Column({ name: 'city_id', nullable: true })
+  cityId: string | null;
+
+  @Column({ type: 'varchar', default: 'city' })
+  ownerType: 'player' | 'company' | 'city' | 'state';
+
+  @Column({ type: 'varchar', nullable: true })
+  ownerId: string | null;
+
+  @Column({ default: false })
+  isHiddenOnMap: boolean;
 
   @Column({ type: 'int' })
   minX: number;
