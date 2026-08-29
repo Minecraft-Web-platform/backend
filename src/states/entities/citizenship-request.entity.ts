@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
-import { CityEntity } from './city.entity';
+import { SettlementEntity } from './settlement.entity';
 
 export type CitizenshipRequestStatus = 'pending' | 'approved' | 'rejected';
 
@@ -11,12 +11,12 @@ export class CitizenshipRequestEntity {
   @Column({ length: 255 })
   username: string;
 
-  @Column({ name: 'city_id', type: 'uuid' })
-  cityId: string;
+  @Column({ name: 'settlement_id', type: 'uuid' })
+  settlementId: string;
 
-  @ManyToOne(() => CityEntity, (city) => city.citizenshipRequests, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'city_id' })
-  city?: CityEntity;
+  @ManyToOne(() => SettlementEntity, (settlement) => settlement.citizenshipRequests, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'settlement_id' })
+  settlement?: SettlementEntity;
 
   @Column({ type: 'varchar', length: 32, default: 'pending' })
   status: CitizenshipRequestStatus;

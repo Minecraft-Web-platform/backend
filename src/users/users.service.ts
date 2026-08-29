@@ -8,6 +8,7 @@ import { User } from './entities/user.entity';
 import { CreateUserType } from 'src/auth/types/create-user.type';
 import { UsersServiceContract } from './users.service.contract';
 import { UploadService } from 'src/upload/upload.service';
+import { MinecraftRconService } from 'src/minecraft-rcon/minecraft-rcon.service';
 
 @Injectable()
 export class UsersService implements UsersServiceContract {
@@ -15,10 +16,11 @@ export class UsersService implements UsersServiceContract {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     private uploadService: UploadService,
+    private rconService: MinecraftRconService,
   ) {}
 
   public async getAll(): Promise<User[]> {
-    return this.usersRepository.find({ relations: ['city', 'state'] });
+    return this.usersRepository.find({ relations: ['settlement', 'state'] });
   }
 
   /**
@@ -31,7 +33,7 @@ export class UsersService implements UsersServiceContract {
 
     return this.usersRepository.findOne({
       where: { username_lower: usernameLower },
-      relations: ['codes', 'city', 'state'],
+      relations: ['codes', 'settlement', 'state'],
     });
   }
 
@@ -111,4 +113,43 @@ export class UsersService implements UsersServiceContract {
       hex.substring(20),
     ].join('-');
   }
+
+  public async banUser(username: string, reason: string): Promise<User> {
+    const user = await this.getByUsername(username);
+    if (!user) {
+      throw new NotFoundException('Игрок не найден');
+    }
+
+    user.isBanned = true;
+    user.banReason = reason;
+    await this.usersRepository.save(user);
+
+    try {
+      await this.rconService.executeCommand(`ban ${user.username} ${reason}`);
+    } catch (e) {
+      console.error(`Failed to ban ${user.username} via RCON:`, e);
+    }
+
+    return user;
+  }
+
+  public async unbanUser(username: string): Promise<User> {
+    const user = await this.getByUsername(username);
+    if (!user) {
+      throw new NotFoundException('Игрок не найден');
+    }
+
+    user.isBanned = false;
+    user.banReason = null;
+    await this.usersRepository.save(user);
+
+    try {
+      await this.rconService.executeCommand(`pardon ${user.username}`);
+    } catch (e) {
+      console.error(`Failed to unban ${user.username} via RCON:`, e);
+    }
+
+    return user;
+  }
 }
+

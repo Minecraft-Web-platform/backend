@@ -20,7 +20,7 @@ export class ProxyController {
       res.set('Access-Control-Allow-Origin', '*');
       res.set('Cache-Control', 'public, max-age=31536000');
       res.send(buffer);
-    } catch (e) {
+    } catch {
       res.status(500).send('Error proxying image');
     }
   }

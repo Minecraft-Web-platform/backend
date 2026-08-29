@@ -2,13 +2,13 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StatesService } from './states.service';
 import { StatesController } from './states.controller';
-import { CitiesController } from './cities.controller';
+import { SettlementsController } from './settlements.controller';
 import { ElectionsController } from './elections.controller';
 import { StreetsController } from './controllers/streets.controller';
 import { TerritoriesController } from './controllers/territories.controller';
 import { StreetsService } from './services/streets.service';
 import { StateEntity } from './entities/state.entity';
-import { CityEntity } from './entities/city.entity';
+import { SettlementEntity } from './entities/settlement.entity';
 import { StateDiplomacyEntity } from './entities/state-diplomacy.entity';
 import { StateDecreeEntity } from './entities/state-decree.entity';
 import { StateTreasuryItemEntity } from './entities/state-treasury-item.entity';
@@ -18,6 +18,7 @@ import { ElectionCandidateEntity } from './entities/election-candidate.entity';
 import { ElectionVoteEntity } from './entities/election-vote.entity';
 import { StreetEntity } from './entities/street.entity';
 import { TerritoryEntity } from './entities/territory.entity';
+import { SettlementTypeEntity } from './entities/settlement-type.entity';
 import { User } from '../users/entities/user.entity';
 import { Account } from '../economy/entities/account.entity';
 import { Company } from '../economy/entities/company.entity';
@@ -27,7 +28,7 @@ import { MinecraftRconModule } from '../minecraft-rcon/minecraft-rcon.module';
 import { EventsModule } from '../events/events.module';
 import { NewsModule } from '../news/news.module';
 
-import { CitiesService } from './services/cities.service';
+import { SettlementsService } from './services/settlements.service';
 import { ElectionsService } from './services/elections.service';
 import { TerritoriesService } from './services/territories.service';
 
@@ -35,7 +36,7 @@ import { TerritoriesService } from './services/territories.service';
   imports: [
     TypeOrmModule.forFeature([
       StateEntity,
-      CityEntity,
+      SettlementEntity,
       StateDiplomacyEntity,
       StateDecreeEntity,
       StateTreasuryItemEntity,
@@ -45,6 +46,7 @@ import { TerritoriesService } from './services/territories.service';
       ElectionVoteEntity,
       StreetEntity,
       TerritoryEntity,
+      SettlementTypeEntity,
       User,
       Account,
       Company,
@@ -55,8 +57,8 @@ import { TerritoriesService } from './services/territories.service';
     EventsModule,
     NewsModule,
   ],
-  providers: [StatesService, StreetsService, CitiesService, ElectionsService, TerritoriesService],
-  controllers: [StatesController, CitiesController, ElectionsController, StreetsController, TerritoriesController],
-  exports: [StatesService, CitiesService, ElectionsService, TerritoriesService],
+  providers: [StatesService, StreetsService, SettlementsService, ElectionsService, TerritoriesService],
+  controllers: [StatesController, SettlementsController, ElectionsController, StreetsController, TerritoriesController],
+  exports: [StatesService, SettlementsService, ElectionsService, TerritoriesService],
 })
 export class StatesModule {}

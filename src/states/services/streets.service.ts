@@ -2,30 +2,30 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StreetEntity } from '../entities/street.entity';
-import { CityEntity } from '../entities/city.entity';
+import { SettlementEntity } from '../entities/settlement.entity';
 
 @Injectable()
 export class StreetsService {
   constructor(
     @InjectRepository(StreetEntity)
     private readonly streetRepository: Repository<StreetEntity>,
-    @InjectRepository(CityEntity)
-    private readonly cityRepository: Repository<CityEntity>,
+    @InjectRepository(SettlementEntity)
+    private readonly settlementRepository: Repository<SettlementEntity>,
   ) {}
 
-  public async getStreetsByCity(cityId: string): Promise<StreetEntity[]> {
+  public async getStreetsBySettlement(settlementId: string): Promise<StreetEntity[]> {
     return this.streetRepository.find({
-      where: { cityId },
+      where: { settlementId },
       order: { createdAt: 'ASC' },
     });
   }
 
-  public async createStreet(username: string, cityId: string, name: string): Promise<StreetEntity> {
-    const city = await this.cityRepository.findOne({ where: { id: cityId }, relations: ['state'] });
-    if (!city) throw new NotFoundException('Город не найден');
+  public async createStreet(username: string, settlementId: string, name: string): Promise<StreetEntity> {
+    const settlement = await this.settlementRepository.findOne({ where: { id: settlementId }, relations: ['state'] });
+    if (!settlement) throw new NotFoundException('Поселение не найден');
 
-    const isMayor = city.mayorUsername?.toLowerCase() === username.toLowerCase();
-    const isPresident = city.state?.leaderUsername?.toLowerCase() === username.toLowerCase();
+    const isMayor = settlement.mayorUsername?.toLowerCase() === username.toLowerCase();
+    const isPresident = settlement.state?.leaderUsername?.toLowerCase() === username.toLowerCase();
 
     if (!isMayor && !isPresident) {
       throw new ForbiddenException('Только мэр или президент могут создавать улицы');
@@ -35,31 +35,31 @@ export class StreetsService {
       throw new BadRequestException('Название улицы должно быть длиннее 2 символов');
     }
 
-    const existing = await this.streetRepository.findOne({ where: { cityId, name: name.trim() } });
+    const existing = await this.streetRepository.findOne({ where: { settlementId, name: name.trim() } });
     if (existing) {
-      throw new BadRequestException('Улица с таким названием уже существует в этом городе');
+      throw new BadRequestException('Улица с таким названием уже существует в этом поселении');
     }
 
     const street = this.streetRepository.create({
-      cityId,
+      settlementId,
       name: name.trim(),
     });
 
     return this.streetRepository.save(street);
   }
 
-  public async updateStreet(username: string, cityId: string, streetId: string, name: string): Promise<StreetEntity> {
-    const city = await this.cityRepository.findOne({ where: { id: cityId }, relations: ['state'] });
-    if (!city) throw new NotFoundException('Город не найден');
+  public async updateStreet(username: string, settlementId: string, streetId: string, name: string): Promise<StreetEntity> {
+    const settlement = await this.settlementRepository.findOne({ where: { id: settlementId }, relations: ['state'] });
+    if (!settlement) throw new NotFoundException('Поселение не найден');
 
-    const isMayor = city.mayorUsername?.toLowerCase() === username.toLowerCase();
-    const isPresident = city.state?.leaderUsername?.toLowerCase() === username.toLowerCase();
+    const isMayor = settlement.mayorUsername?.toLowerCase() === username.toLowerCase();
+    const isPresident = settlement.state?.leaderUsername?.toLowerCase() === username.toLowerCase();
 
     if (!isMayor && !isPresident) {
       throw new ForbiddenException('Только мэр или президент могут редактировать улицы');
     }
 
-    const street = await this.streetRepository.findOne({ where: { id: streetId, cityId } });
+    const street = await this.streetRepository.findOne({ where: { id: streetId, settlementId } });
     if (!street) {
       throw new NotFoundException('Улица не найдена');
     }
@@ -72,18 +72,18 @@ export class StreetsService {
     return this.streetRepository.save(street);
   }
 
-  public async deleteStreet(username: string, cityId: string, streetId: string): Promise<void> {
-    const city = await this.cityRepository.findOne({ where: { id: cityId }, relations: ['state'] });
-    if (!city) throw new NotFoundException('Город не найден');
+  public async deleteStreet(username: string, settlementId: string, streetId: string): Promise<void> {
+    const settlement = await this.settlementRepository.findOne({ where: { id: settlementId }, relations: ['state'] });
+    if (!settlement) throw new NotFoundException('Поселение не найден');
 
-    const isMayor = city.mayorUsername?.toLowerCase() === username.toLowerCase();
-    const isPresident = city.state?.leaderUsername?.toLowerCase() === username.toLowerCase();
+    const isMayor = settlement.mayorUsername?.toLowerCase() === username.toLowerCase();
+    const isPresident = settlement.state?.leaderUsername?.toLowerCase() === username.toLowerCase();
 
     if (!isMayor && !isPresident) {
       throw new ForbiddenException('Только мэр или президент могут удалять улицы');
     }
 
-    const street = await this.streetRepository.findOne({ where: { id: streetId, cityId } });
+    const street = await this.streetRepository.findOne({ where: { id: streetId, settlementId } });
     if (!street) {
       throw new NotFoundException('Улица не найдена');
     }

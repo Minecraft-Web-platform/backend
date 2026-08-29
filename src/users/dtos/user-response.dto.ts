@@ -9,9 +9,9 @@ export class UserResponseDto {
   public avatar_img: string | null;
   public lastLoginDate: string;
   public registrationDate: string;
-  public cityId: string | null;
+  public settlementId: string | null;
   public stateId: string | null;
-  public cityName: string | null;
+  public settlementName: string | null;
   public stateName: string | null;
   public citizenshipName: string | null;
   public stateFlagUrl: string | null;
@@ -21,6 +21,8 @@ export class UserResponseDto {
   public role: string;
   public isAdmin: boolean;
   public isEconomist: boolean;
+  public isBanned: boolean;
+  public banReason: string | null;
 
   constructor(user: User) {
     this.id = user.id;
@@ -31,9 +33,9 @@ export class UserResponseDto {
     this.avatar_img = user.avatarUrl;
     this.lastLoginDate = user.data.last_authenticated_date;
     this.registrationDate = user.data.registration_date;
-    this.cityId = user.cityId || null;
+    this.settlementId = user.settlementId || null;
     this.stateId = user.stateId || null;
-    this.cityName = user.city?.name || null;
+    this.settlementName = user.settlement?.name || null;
     this.stateName = user.state?.name || null;
     this.citizenshipName = user.state?.citizenshipName || user.state?.name || null;
     this.stateFlagUrl = user.state?.flagUrl || null;
@@ -43,5 +45,7 @@ export class UserResponseDto {
     this.role = user.role || (user.isAdmin ? 'admin' : 'player');
     this.isAdmin = this.role === 'admin' || user.isAdmin;
     this.isEconomist = this.role === 'economist' || this.role === 'admin' || user.isAdmin;
+    this.isBanned = user.isBanned || false;
+    this.banReason = user.banReason || null;
   }
 }

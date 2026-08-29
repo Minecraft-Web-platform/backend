@@ -35,7 +35,7 @@ export class ModsController {
       for (const s of activeStreams) {
         try {
           s.destroy();
-        } catch {}
+        } catch { /* ignore */ }
       }
       activeStreams.clear();
     };

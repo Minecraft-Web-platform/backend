@@ -13,6 +13,7 @@ import { InitPasswordResetDto } from './dtos/init-password-reset.dto';
 import { AccessTokenGuard } from './guards/access-token.guard';
 import { AuthenticatedRequest } from './types/auth-request.type';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
+import { AllowBanned } from './decorators/allow-banned.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -33,6 +34,14 @@ export class AuthController {
   @Post('login')
   public async login(@Body() loginData: LoginDto) {
     return this.authService.login(loginData);
+  }
+
+  @HttpCode(200)
+  @Post('logout')
+  @UseGuards(AccessTokenGuard)
+  @AllowBanned()
+  public async logout(@Req() request: AuthenticatedRequest) {
+    return { success: true };
   }
 
   @HttpCode(200)
@@ -69,6 +78,7 @@ export class AuthController {
   @HttpCode(200)
   @Get('me')
   @UseGuards(AccessTokenGuard)
+  @AllowBanned()
   public async getInfoAboutMe(@Req() request: AuthenticatedRequest) {
     const username_lower = request.user.username_lower;
 

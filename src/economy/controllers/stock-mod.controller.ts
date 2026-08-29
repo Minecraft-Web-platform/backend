@@ -12,6 +12,7 @@ import {
   GetCompaniesDto,
   WithdrawSharesDto,
   DepositSharesDto,
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   BuySharesDto,
 } from '../dto/stock-mod.dto';
 
@@ -38,7 +39,7 @@ export class StockModController {
       const hasAccess =
         state.leaderUsername?.toLowerCase() === lower || state.treasurerUsername?.toLowerCase() === lower;
       return { hasAccess, stateName: state.name };
-    } catch (e) {
+    } catch {
       return { hasAccess: false };
     }
   }
@@ -49,9 +50,11 @@ export class StockModController {
       throw new BadRequestException('Missing parameters');
     }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
     const portfolio = await this.stockService.getModPortfolio(dto.entityId, dto.entityType as any);
     if (dto.exchangeStateId) {
-      return portfolio.filter((s) => s.exchangeStateId === dto.exchangeStateId);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return portfolio.filter((s: any) => s.exchangeStateId === dto.exchangeStateId);
     }
     return portfolio;
   }
@@ -86,7 +89,7 @@ export class StockModController {
     if (dto.exchangeStateId) {
       companies = companies.filter((c) => c.exchangeStateId === dto.exchangeStateId);
     }
-    const result: any[] = [];
+    const result: unknown[] = [];
     for (const comp of companies) {
       const history = await this.stockService.getCompanySharePriceHistory(comp.id);
       const last9 = history.slice(-9).map((h) => h.price);
@@ -110,6 +113,7 @@ export class StockModController {
 
     const certificate = await this.stockService.withdrawShares(
       dto.entityId,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
       dto.entityType as any,
       dto.companyId,
       count,
@@ -161,6 +165,7 @@ export class StockModController {
       throw new BadRequestException('Missing parameters');
     }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
     const success = await this.stockService.depositShares(dto.entityId, dto.entityType as any, dto.certificateId);
     return { success };
   }

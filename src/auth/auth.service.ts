@@ -68,6 +68,8 @@ export class AuthService implements AuthServiceContract {
       role: 'player' as const,
       is_admin: false,
       avatarUrl: null,
+      isBanned: false,
+      banReason: null,
     };
 
     const createdUser = await this.usersService.create(dataForNewUser);

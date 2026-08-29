@@ -17,9 +17,10 @@ export class AchievementsListener implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
-    this.eventEmitter.on('**', async function (this: any, payload: any) {
-      const eventName = this.event;
+    this.eventEmitter.on('**', async function (this: { event: string | string[] }, payload: { initiatorUsername?: string, [key: string]: unknown }) {
+      const eventName = Array.isArray(this.event) ? this.event.join('.') : this.event;
       if (!eventName || !payload || !payload.initiatorUsername) {
         return;
       }
@@ -40,10 +41,12 @@ export class AchievementsListener implements OnModuleInit {
           self.logger.log(
             `Automatically granted achievement "${achievement.title}" to ${username} for event ${eventName}`,
           );
-        } catch (err: any) {
-          if (err.status !== 409) {
+        } catch (err: unknown) {
+          const isConflict = err && typeof err === 'object' && 'status' in err && err.status === 409;
+          if (!isConflict) {
             // Ignore ConflictException (already has achievement)
-            self.logger.error(`Error granting achievement automatically: ${err.message}`);
+            const message = err instanceof Error ? err.message : String(err);
+            self.logger.error(`Error granting achievement automatically: ${message}`);
           }
         }
       }

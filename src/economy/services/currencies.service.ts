@@ -27,7 +27,7 @@ export class CurrenciesService {
     private readonly autoNewsService: AutoNewsService,
   ) {}
 
-  public async getAllCurrencies(): Promise<any[]> {
+  public async getAllCurrencies(): Promise<unknown[]> {
     const currencies = await this.currencyRepository.find({
       order: { createdAt: 'ASC' },
     });
@@ -46,7 +46,7 @@ export class CurrenciesService {
   @OnEvent('state.updated')
   @OnEvent('state.treasury.updated')
   @OnEvent('state.citizens.updated')
-  @OnEvent('state.city.updated')
+  @OnEvent('state.settlement.updated')
   public async handleStateEconomyChanges(payload: { stateId: string }) {
     if (!payload.stateId) return;
     const currency = await this.getCurrencyByStateId(payload.stateId);
@@ -86,7 +86,7 @@ export class CurrenciesService {
     if (dto.stateId) {
       const state = await this.stateRepository.findOne({
         where: { id: dto.stateId },
-        relations: ['citizens', 'cities'],
+        relations: ['citizens', 'settlements'],
       });
       if (!state) {
         throw new NotFoundException('Государство не найдено');
@@ -173,6 +173,7 @@ export class CurrenciesService {
       }
     }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
     const oldRate = currency.exchangeRate;
     currency.totalIssued = Number((currency.totalIssued + amount).toFixed(2));
     await this.currencyRepository.save(currency);
@@ -204,11 +205,11 @@ export class CurrenciesService {
     if (currency.stateId) {
       const state = await this.stateRepository.findOne({
         where: { id: currency.stateId },
-        relations: ['citizens', 'cities', 'cities.citizens'],
+        relations: ['citizens', 'settlements', 'settlements.citizens'],
       });
       if (state) {
         const citizensCount = state.citizens?.length || 0;
-        const activeCitiesCount = state.cities?.filter((c) => (c.citizens?.length || 0) >= 1).length || 0;
+        const activeSettlementsCount = state.settlements?.filter((c) => (c.citizens?.length || 0) >= 1).length || 0;
 
         const taxRate = state.playerToCompanyTransferFee || 5;
         if (taxRate <= 10) {
@@ -219,7 +220,7 @@ export class CurrenciesService {
           taxCoefficient = 0.85;
         }
 
-        basePower += citizensCount * 10 + activeCitiesCount * 100;
+        basePower += citizensCount * 10 + activeSettlementsCount * 100;
       }
     }
 
@@ -302,7 +303,7 @@ export class CurrenciesService {
     return this.currencyRepository.findOne({ where: { stateId } });
   }
 
-  public async getCurrencyById(id: string): Promise<any> {
+  public async getCurrencyById(id: string): Promise<unknown> {
     const c = await this.currencyRepository.findOne({
       where: { id },
     });

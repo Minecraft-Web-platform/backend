@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  Body,
   Controller,
   Get,
   NotFoundException,
@@ -12,6 +14,7 @@ import {
 import { UsersService } from './users.service';
 import { UserResponseDto } from './dtos/user-response.dto';
 import { AccessTokenGuard } from 'src/auth/guards/access-token.guard';
+import { AdminGuard } from 'src/auth/guards/is-admin.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('users')
@@ -50,4 +53,22 @@ export class UsersController {
     const avatarUrl = await this.usersService.uploadAvatar(req.user.id, file);
     return { avatarUrl };
   }
+
+  @Post(':username/ban')
+  @UseGuards(AccessTokenGuard, AdminGuard)
+  async banUser(@Param('username') username: string, @Body('reason') reason: string) {
+    if (!reason || reason.trim() === '') {
+      throw new BadRequestException('Причина бана обязательна');
+    }
+    const user = await this.usersService.banUser(username, reason);
+    return new UserResponseDto(user);
+  }
+
+  @Post(':username/unban')
+  @UseGuards(AccessTokenGuard, AdminGuard)
+  async unbanUser(@Param('username') username: string) {
+    const user = await this.usersService.unbanUser(username);
+    return new UserResponseDto(user);
+  }
 }
+

@@ -1,5 +1,8 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
 import { StreetEntity } from '../../states/entities/street.entity';
+import { TerritoryEntity } from '../../states/entities/territory.entity';
+import { StateEntity } from '../../states/entities/state.entity';
+import { SettlementEntity } from '../../states/entities/settlement.entity';
 
 export type PropertyCategory = 'real_estate' | 'special_object';
 export type PropertyOwnerType = 'personal' | 'company' | 'government';
@@ -25,13 +28,21 @@ export class Property {
   @Column({ type: 'varchar', nullable: true })
   subType: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   @Index()
-  cityId: string | null;
+  settlementId: string | null;
 
-  @Column({ type: 'varchar' })
+  @ManyToOne(() => SettlementEntity, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'settlementId' })
+  settlement?: SettlementEntity;
+
+  @Column({ type: 'uuid' })
   @Index()
   stateId: string;
+
+  @ManyToOne(() => StateEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'stateId' })
+  state?: StateEntity;
 
   @Column({ type: 'varchar' })
   @Index()
@@ -43,6 +54,10 @@ export class Property {
   @Column({ default: false })
   @Index()
   isForSale: boolean;
+
+  @Column({ type: 'uuid', nullable: true })
+  @Index()
+  forSaleToId: string | null;
 
   @Column({ type: 'float', nullable: true })
   price: number | null;
@@ -70,6 +85,17 @@ export class Property {
 
   @Column({ type: 'simple-array', nullable: true })
   photoUrls: string[] | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  @Index()
+  territoryId: string | null;
+
+  @OneToOne(() => TerritoryEntity, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'territoryId' })
+  territory?: TerritoryEntity;
+
+  // Virtual field, not saved to DB
+  ownerName?: string;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -16,15 +16,15 @@ export class EventsService {
     targetUsername?: string;
     type?: EventType;
     stateId?: string;
-    cityId?: string;
+    settlementId?: string;
   }): Promise<EventEntity> {
     const event = this.eventRepo.create(data);
     return this.eventRepo.save(event);
   }
 
   async getUserEvents(username: string): Promise<EventEntity[]> {
-    // Find events specifically targeted to this user OR global events (targetUsername is null and stateId/cityId is null).
-    // For a more advanced version, we could fetch events for the user's city/state too.
+    // Find events specifically targeted to this user OR global events (targetUsername is null and stateId/settlementId is null).
+    // For a more advanced version, we could fetch events for the user's settlement/state too.
     const events = await this.eventRepo
       .createQueryBuilder('event')
       .where('event.targetUsername = :username', { username: username.toLowerCase() })

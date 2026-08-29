@@ -37,7 +37,7 @@ export class CreateStateDto {
 
   @IsString()
   @IsOptional()
-  capitalCityId?: string;
+  capitalSettlementId?: string;
 
   @IsNumber()
   @IsOptional()
@@ -99,7 +99,7 @@ export class UpdateStateDto {
 
   @IsString()
   @IsOptional()
-  capitalCityId?: string;
+  capitalSettlementId?: string;
 
   @IsNumber()
   @IsOptional()
@@ -126,7 +126,7 @@ export class UpdateStateDto {
   color?: string;
 }
 
-export class CreateCityDto {
+export class CreateSettlementDto {
   @IsString()
   name: string;
 
@@ -153,9 +153,25 @@ export class CreateCityDto {
   @IsString()
   @IsOptional()
   color?: string;
+
+  @IsNumber()
+  @IsOptional()
+  centerX?: number;
+
+  @IsNumber()
+  @IsOptional()
+  centerZ?: number;
+
+  @IsString()
+  @IsOptional()
+  status?: 'capital' | 'settlement' | 'rural';
+
+  @IsString()
+  @IsOptional()
+  ruralSubTypeId?: string;
 }
 
-export class UpdateCityDto {
+export class UpdateSettlementDto {
   @IsString()
   @IsOptional()
   name?: string;
@@ -188,6 +204,22 @@ export class UpdateCityDto {
   @IsString()
   @IsOptional()
   color?: string;
+
+  @IsNumber()
+  @IsOptional()
+  centerX?: number;
+
+  @IsNumber()
+  @IsOptional()
+  centerZ?: number;
+
+  @IsString()
+  @IsOptional()
+  status?: 'capital' | 'settlement' | 'rural';
+
+  @IsString()
+  @IsOptional()
+  ruralSubTypeId?: string;
 }
 
 export class SetDiplomacyDto {
@@ -208,7 +240,7 @@ export class CreateDecreeDto {
 
 export class CreateCitizenshipRequestDto {
   @IsString()
-  cityId: string;
+  settlementId: string;
 }
 
 export class ReviewCitizenshipRequestDto {
@@ -217,7 +249,7 @@ export class ReviewCitizenshipRequestDto {
 }
 
 export class CreateElectionDto {
-  @IsIn(['state', 'city'])
+  @IsIn(['state', 'settlement'])
   targetType: ElectionTargetType;
 
   @IsString()

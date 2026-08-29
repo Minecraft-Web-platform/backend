@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
-import { PropertyService, CreatePropertyDto } from '../services/property.service';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { PropertyService, CreatePropertyDto, UpdatePropertyDto } from '../services/property.service';
 import { PropertyOwnerType } from '../entities/property.entity';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 
@@ -25,16 +25,37 @@ export class PropertyController {
     return this.propertyService.getMyProperties(username, uuid);
   }
 
+  @Get(':id')
+  getPropertyById(@Param('id') id: string) {
+    return this.propertyService.getPropertyById(id);
+  }
+
   @Post()
   createProperty(@Body() dto: CreatePropertyDto, @Request() req) {
     const username = req.user.username_lower;
     return this.propertyService.createProperty(username, dto);
   }
 
-  @Post(':id/sell')
-  listPropertyForSale(@Param('id') id: string, @Body('price') price: number, @Request() req) {
+  @Patch(':id')
+  updateProperty(@Param('id') id: string, @Body() dto: UpdatePropertyDto, @Request() req) {
     const username = req.user.username_lower;
-    return this.propertyService.listPropertyForSale(username, id, price);
+    return this.propertyService.updateProperty(id, dto, username);
+  }
+
+  @Post(':id/sell')
+  listPropertyForSale(
+    @Param('id') id: string,
+    @Body('price') price: number,
+    @Body('forSaleToId') forSaleToId: string | undefined,
+    @Request() req
+  ) {
+    const username = req.user.username_lower;
+    return this.propertyService.listPropertyForSale(username, id, price, forSaleToId);
+  }
+
+  @Get(':id/eligible-buyers')
+  getEligibleBuyers(@Param('id') id: string) {
+    return this.propertyService.getEligibleBuyers(id);
   }
 
   @Post(':id/cancel-sell')

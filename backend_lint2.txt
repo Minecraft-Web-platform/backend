@@ -1,0 +1,78 @@
+
+> backend@0.0.1 lint
+> eslint "{src,apps,libs,test}/**/*.ts" --fix
+
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/achievements/achievements.controller.ts
+  64:24  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  71:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/achievements/achievements.listener.ts
+  20:11  error  Unexpected aliasing of 'this' to local variable  @typescript-eslint/no-this-alias
+  21:54  error  Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+  21:68  error  Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/controllers/proxy.controller.ts
+  23:14  error  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/controllers/stock-mod.controller.ts
+   15:3   error  'BuySharesDto' is defined but never used  @typescript-eslint/no-unused-vars
+   41:14  error  'e' is defined but never used             @typescript-eslint/no-unused-vars
+   52:95  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   89:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  113:25  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  164:91  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/dto/stock-mod.dto.ts
+  1:44  error  'IsNumber' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/services/companies.service.ts
+  34:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/services/company-services.service.ts
+  1:62  error  'Inject' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/services/credit-cards.service.ts
+  14:23  error  '_username' is defined but never used  @typescript-eslint/no-unused-vars
+  18:26  error  '_uuid' is defined but never used      @typescript-eslint/no-unused-vars
+  24:23  error  '_uuid' is defined but never used      @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/services/currencies.service.ts
+   30:44  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  176:11  error  'oldRate' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  305:53  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/services/economy.service.ts
+    17:7   error  'ITEM_VALUES' is assigned a value but never used      @typescript-eslint/no-unused-vars
+    28:7   error  'GOLD_TIERS' is assigned a value but never used       @typescript-eslint/no-unused-vars
+    33:7   error  'DIAMOND_TIERS' is assigned a value but never used    @typescript-eslint/no-unused-vars
+    37:7   error  'EMERALD_TIERS' is assigned a value but never used    @typescript-eslint/no-unused-vars
+    41:7   error  'NETHERITE_TIERS' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   214:64  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   216:19  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   538:20  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   544:22  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   727:58  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   738:41  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   964:21  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  1068:13  error  'kopeck' is assigned a value but never used           @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/services/stock-exchange.service.ts
+   46:23   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  635:103  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  636:23   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/states/controllers/territories.controller.ts
+  1:84  error  'ForbiddenException' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/states/services/elections.service.ts
+  118:18  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/states/services/territories.service.ts
+  1:82  error  'forwardRef' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/states/states.service.ts
+  365:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 41 problems (41 errors, 0 warnings)
+

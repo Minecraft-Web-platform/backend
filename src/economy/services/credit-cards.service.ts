@@ -11,15 +11,18 @@ export class CreditCardsService {
     private repo: Repository<CreditCard>,
   ) {}
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async getAll(_username: User['username']): Promise<CreditCard[]> {
     return [];
   }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async getByUUID(_uuid: CreditCard['id']): Promise<CreditCard | null> {
     return null;
   }
 
   public async create() {}
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   public async delete(_uuid: CreditCard['id']): Promise<void> {}
 }

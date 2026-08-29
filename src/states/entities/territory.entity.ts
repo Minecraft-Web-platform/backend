@@ -1,20 +1,21 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
-import { CityEntity } from './city.entity';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, OneToOne } from 'typeorm';
+import { SettlementEntity } from './settlement.entity';
+import { Property } from '../../economy/entities/property.entity';
 
 @Entity('territories')
 export class TerritoryEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => CityEntity, (city) => city.territories, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'city_id' })
-  city?: CityEntity;
+  @ManyToOne(() => SettlementEntity, (settlement) => settlement.territories, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'settlement_id' })
+  settlement?: SettlementEntity;
 
-  @Column({ name: 'city_id', nullable: true })
-  cityId: string | null;
+  @Column({ name: 'settlement_id', nullable: true })
+  settlementId: string | null;
 
-  @Column({ type: 'varchar', default: 'city' })
-  ownerType: 'player' | 'company' | 'city' | 'state';
+  @Column({ type: 'varchar', default: 'settlement' })
+  ownerType: 'player' | 'company' | 'settlement' | 'state';
 
   @Column({ type: 'varchar', nullable: true })
   ownerId: string | null;
@@ -39,6 +40,9 @@ export class TerritoryEntity {
 
   @Column({ type: 'int' })
   maxZ: number;
+
+  @OneToOne(() => Property, (property) => property.territory)
+  property?: Property;
 
   @CreateDateColumn()
   createdAt: Date;

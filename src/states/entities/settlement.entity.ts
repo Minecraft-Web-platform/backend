@@ -3,9 +3,10 @@ import { StateEntity } from './state.entity';
 import { User } from '../../users/entities/user.entity';
 import { CitizenshipRequestEntity } from './citizenship-request.entity';
 import { TerritoryEntity } from './territory.entity';
+import { SettlementTypeEntity } from './settlement-type.entity';
 
-@Entity('cities')
-export class CityEntity {
+@Entity('settlements')
+export class SettlementEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -27,28 +28,41 @@ export class CityEntity {
   @Column({ name: 'state_id', type: 'uuid', nullable: true })
   stateId: string | null;
 
-  @Column({ default: false })
-  isCapital: boolean;
+  @Column({ type: 'varchar', default: 'settlement' })
+  status: 'capital' | 'settlement' | 'rural';
+
+  @Column({ name: 'center_x', type: 'int', default: 0 })
+  centerX: number;
+
+  @Column({ name: 'center_z', type: 'int', default: 0 })
+  centerZ: number;
+
+  @Column({ name: 'rural_sub_type_id', type: 'uuid', nullable: true })
+  ruralSubTypeId: string | null;
+
+  @ManyToOne(() => SettlementTypeEntity, { nullable: true })
+  @JoinColumn({ name: 'rural_sub_type_id' })
+  ruralSubType?: SettlementTypeEntity;
 
   @Column({ type: 'simple-array', nullable: true })
   images: string[];
 
-  @ManyToOne(() => StateEntity, (state) => state.cities, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => StateEntity, (state) => state.settlements, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'state_id' })
   state?: StateEntity;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 
-  @OneToMany(() => User, (user) => user.city)
+  @OneToMany(() => User, (user) => user.settlement)
   citizens?: User[];
 
   @Column({ type: 'varchar', nullable: true })
   treasuryAccountNumber?: string;
 
-  @OneToMany(() => CitizenshipRequestEntity, (req) => req.city, { cascade: true })
+  @OneToMany(() => CitizenshipRequestEntity, (req) => req.settlement, { cascade: true })
   citizenshipRequests?: CitizenshipRequestEntity[];
 
-  @OneToMany(() => TerritoryEntity, (t) => t.city, { cascade: true })
+  @OneToMany(() => TerritoryEntity, (t) => t.settlement, { cascade: true })
   territories?: TerritoryEntity[];
 }

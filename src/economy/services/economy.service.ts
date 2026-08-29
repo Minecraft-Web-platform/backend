@@ -8,12 +8,13 @@ import { Transfer } from '../entities/transfer.entity';
 import { Company } from '../entities/company.entity';
 import { Currency } from '../entities/currency.entity';
 import { User } from '../../users/entities/user.entity';
-import { CityEntity } from '../../states/entities/city.entity';
+import { SettlementEntity } from '../../states/entities/settlement.entity';
 import { StateEntity } from '../../states/entities/state.entity';
 import { AccountTreasuryItemEntity } from '../entities/account-treasury-item.entity';
 import { StateTreasuryItemEntity } from '../../states/entities/state-treasury-item.entity';
 import { MinecraftRconService } from '../../minecraft-rcon/minecraft-rcon.service';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ITEM_VALUES: Record<string, number> = {
   'minecraft:gold_block': 81,
   'minecraft:diamond': 20,
@@ -25,19 +26,23 @@ const ITEM_VALUES: Record<string, number> = {
   'minecraft:netherite_block': 1350,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const GOLD_TIERS = [
   { id: 'minecraft:gold_block', val: 81 },
   { id: 'minecraft:gold_ingot', val: 9 },
   { id: 'minecraft:gold_nugget', val: 1 },
 ];
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const DIAMOND_TIERS = [
   { id: 'minecraft:diamond_block', val: 180 },
   { id: 'minecraft:diamond', val: 20 },
 ];
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const EMERALD_TIERS = [
   { id: 'minecraft:emerald_block', val: 108 },
   { id: 'minecraft:emerald', val: 12 },
 ];
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const NETHERITE_TIERS = [
   { id: 'minecraft:netherite_block', val: 1350 },
   { id: 'minecraft:netherite_ingot', val: 150 },
@@ -53,8 +58,8 @@ export class EconomyService {
     private readonly cardRepository: Repository<CreditCard>,
     @InjectRepository(Transfer)
     private readonly transferRepository: Repository<Transfer>,
-    @InjectRepository(CityEntity)
-    private readonly cityRepository: Repository<CityEntity>,
+    @InjectRepository(SettlementEntity)
+    private readonly settlementRepository: Repository<SettlementEntity>,
     @InjectRepository(Company)
     private readonly companyRepository: Repository<Company>,
     @InjectRepository(Currency)
@@ -79,12 +84,12 @@ export class EconomyService {
       throw new NotFoundException('Игрок не найден');
     }
     let stateId = user.stateId;
-    if (!stateId && user.cityId) {
-      const city = await this.cityRepository.findOne({
-        where: { id: user.cityId },
+    if (!stateId && user.settlementId) {
+      const settlement = await this.settlementRepository.findOne({
+        where: { id: user.settlementId },
       });
-      if (city?.stateId) {
-        stateId = city.stateId;
+      if (settlement?.stateId) {
+        stateId = settlement.stateId;
       }
     }
     if (!stateId) {
@@ -211,9 +216,9 @@ export class EconomyService {
     return { accounts: enrichedAccounts, cards: enrichedCards };
   }
 
-  public async getModAccounts(playerUsername: string): Promise<any[]> {
+  public async getModAccounts(playerUsername: string): Promise<unknown[]> {
     const lower = playerUsername.toLowerCase();
-    const result: any[] = [];
+    const result: unknown[] = [];
 
     const personalAccounts = await this.accountRepository.find({
       where: { ownerUsername: lower, type: 'personal' },
@@ -463,11 +468,11 @@ export class EconomyService {
     if (account.currencyCode) {
       const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
       if (currency?.stateId) {
-        const cities = await this.cityRepository.find({ where: { stateId: currency.stateId } });
+        const settlements = await this.settlementRepository.find({ where: { stateId: currency.stateId } });
         let allImages: string[] = [];
-        for (const city of cities) {
-          if (city.images && city.images.length > 0) {
-            allImages = allImages.concat(city.images);
+        for (const settlement of settlements) {
+          if (settlement.images && settlement.images.length > 0) {
+            allImages = allImages.concat(settlement.images);
           }
         }
         if (allImages.length > 0) {
@@ -535,12 +540,14 @@ export class EconomyService {
       if (acc) {
         const currency = currencies.find((c) => c.code === acc.currencyCode);
         if (currency) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
           (card as any).currencyItemId = currency.minecraftItemId;
         }
 
         if (acc.type === 'company') {
           const company = companies.find((c) => c.accountId === acc.id);
           if (company) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
             (card as any).companyName = company.name;
           }
         }
@@ -724,7 +731,7 @@ export class EconomyService {
     return savedTransfer;
   }
 
-  public async getMyTransfers(username: string): Promise<any[]> {
+  public async getMyTransfers(username: string): Promise<unknown[]> {
     const { accounts: myAccounts } = await this.getMyAccounts(username);
     const lower = username.toLowerCase();
 
@@ -735,6 +742,7 @@ export class EconomyService {
       .orWhere('LOWER(state.treasurerUsername) = :lower', { lower })
       .getOne();
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
     let allNumbers = myAccounts.map((a: any) => a.accountNumber);
 
     if (state) {
@@ -961,6 +969,7 @@ export class EconomyService {
       });
       const itemMap = new Map(existingItems.map((i) => [i.minecraftItemId, i]));
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
       const toSave: any[] = [];
       for (const [itemId, count] of itemCounts.entries()) {
         let treasuryItem = itemMap.get(itemId);
@@ -1065,6 +1074,7 @@ export class EconomyService {
       await this.accountRepository.save(account);
 
       const currency = await this.currencyRepository.findOne({ where: { code: account.currencyCode } });
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
       const kopeck = currency ? currency.kopeckItemId : 'minecraft:gold_nugget';
       const cName = currency ? currency.name : undefined;
       const cEnch = currency ? currency.minecraftEnchantment : undefined;

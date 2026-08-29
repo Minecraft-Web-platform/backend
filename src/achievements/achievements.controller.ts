@@ -61,14 +61,14 @@ export class AchievementsController {
 
     console.log(`SSE connection opened for user: ${username}`);
     return fromEvent(this.eventEmitter, 'achievement.granted').pipe(
-      filter((payload: any) => {
+      filter((payload: { username_lower: string, achievement: unknown }) => {
         const matches = payload.username_lower === username;
         console.log(
           `SSE event intercepted. Payload user: ${payload.username_lower}, Target user: ${username}, Matches: ${matches}`,
         );
         return matches;
       }),
-      map((payload: any) => {
+      map((payload: { username_lower: string, achievement: unknown }) => {
         console.log(`SSE event mapped and sending for user: ${username}`);
         return {
           data: {

@@ -10,11 +10,11 @@ export class CompaniesController {
 
   @Get()
   async getAllCompanies(
-    @Query('cityId') cityId?: string,
+    @Query('settlementId') settlementId?: string,
     @Query('stateId') stateId?: string,
     @Query('ownerUsername') ownerUsername?: string,
   ) {
-    return this.companiesService.getAllCompanies({ cityId, stateId, ownerUsername });
+    return this.companiesService.getAllCompanies({ settlementId, stateId, ownerUsername });
   }
 
   @Get(':id')
@@ -30,7 +30,7 @@ export class CompaniesController {
       name: string;
       description?: string;
       logoUrl?: string;
-      cityId?: string;
+      settlementId?: string;
       stateId?: string;
     },
   ) {

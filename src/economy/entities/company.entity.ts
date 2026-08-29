@@ -21,7 +21,7 @@ export class Company {
 
   @Column({ type: 'varchar', nullable: true })
   @Index()
-  cityId: string | null; // юрисдикция города
+  settlementId: string | null; // юрисдикция поселения
 
   @Column({ type: 'varchar', nullable: true })
   @Index()

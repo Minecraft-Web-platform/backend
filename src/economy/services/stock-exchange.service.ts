@@ -43,6 +43,7 @@ export class StockExchangeService {
   }
 
   public async getMyPortfolio(username: string): Promise<CompanyShare[]> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
     const identities: any[] = [{ ownerType: 'player', ownerId: username.toLowerCase() }];
 
     const states = await this.stateRepository.find({ where: { treasurerUsername: username.toLowerCase() } });
@@ -632,7 +633,8 @@ export class StockExchangeService {
     return savedCompany;
   }
 
-  public async getModPortfolio(entityId: string, entityType: 'player' | 'state' | 'company'): Promise<any[]> {
+  public async getModPortfolio(entityId: string, entityType: 'player' | 'state' | 'company'): Promise<unknown[]> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
     const identities: any[] = [{ ownerType: entityType, ownerId: entityId.toLowerCase() }];
     const shares = await this.shareRepository.find({
       where: identities,

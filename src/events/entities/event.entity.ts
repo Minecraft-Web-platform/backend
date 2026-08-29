@@ -23,7 +23,7 @@ export class EventEntity {
   stateId?: string | null;
 
   @Column({ type: 'uuid', nullable: true })
-  cityId?: string | null;
+  settlementId?: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

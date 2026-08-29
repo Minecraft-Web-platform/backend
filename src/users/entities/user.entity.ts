@@ -1,6 +1,6 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { ConfirmationCode } from './confirmation-code.entity';
-import { CityEntity } from '../../states/entities/city.entity';
+import { SettlementEntity } from '../../states/entities/settlement.entity';
 import { StateEntity } from '../../states/entities/state.entity';
 import { UserAchievement } from '../../achievements/entities/user-achievement.entity';
 
@@ -42,6 +42,12 @@ export class User {
   @Column({ name: 'role', type: 'varchar', default: 'player' })
   role: UserRole;
 
+  @Column({ default: false })
+  isBanned: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  banReason: string | null;
+
   get isAdmin(): boolean {
     return this.role === 'admin' || this.is_admin;
   }
@@ -56,15 +62,15 @@ export class User {
   @Column({ type: 'simple-json' })
   data: UserDataField;
 
-  @Column({ name: 'city_id', type: 'uuid', nullable: true, default: null })
-  cityId?: string | null;
+  @Column({ name: 'settlement_id', type: 'uuid', nullable: true, default: null })
+  settlementId?: string | null;
 
   @Column({ name: 'state_id', type: 'uuid', nullable: true, default: null })
   stateId?: string | null;
 
-  @ManyToOne(() => CityEntity, (city) => city.citizens, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn({ name: 'city_id' })
-  city?: CityEntity;
+  @ManyToOne(() => SettlementEntity, (settlement) => settlement.citizens, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'settlement_id' })
+  settlement?: SettlementEntity;
 
   @ManyToOne(() => StateEntity, (state) => state.citizens, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'state_id' })

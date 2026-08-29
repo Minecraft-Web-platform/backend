@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from '../entities/company.entity';
 import { Account } from '../entities/account.entity';
-import { CityEntity } from '../../states/entities/city.entity';
+import { SettlementEntity } from '../../states/entities/settlement.entity';
 import { StateEntity } from '../../states/entities/state.entity';
 import { User } from '../../users/entities/user.entity';
 import { EconomyService } from './economy.service';
@@ -16,8 +16,8 @@ export class CompaniesService {
     private readonly companyRepository: Repository<Company>,
     @InjectRepository(Account)
     private readonly accountRepository: Repository<Account>,
-    @InjectRepository(CityEntity)
-    private readonly cityRepository: Repository<CityEntity>,
+    @InjectRepository(SettlementEntity)
+    private readonly settlementRepository: Repository<SettlementEntity>,
     @InjectRepository(StateEntity)
     private readonly stateRepository: Repository<StateEntity>,
     @InjectRepository(User)
@@ -27,12 +27,13 @@ export class CompaniesService {
   ) {}
 
   public async getAllCompanies(filters?: {
-    cityId?: string;
+    settlementId?: string;
     stateId?: string;
     ownerUsername?: string;
   }): Promise<Company[]> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = { isArchived: false };
-    if (filters?.cityId) where.cityId = filters.cityId;
+    if (filters?.settlementId) where.settlementId = filters.settlementId;
     if (filters?.stateId) where.stateId = filters.stateId;
     if (filters?.ownerUsername) where.ownerUsername = filters.ownerUsername;
 
@@ -56,7 +57,7 @@ export class CompaniesService {
       name: string;
       description?: string;
       logoUrl?: string;
-      cityId?: string;
+      settlementId?: string;
       stateId?: string;
     },
   ): Promise<Company> {
@@ -69,16 +70,16 @@ export class CompaniesService {
     if (!user.emailIsConfirmed) {
       throw new BadRequestException('Регистрировать фирму может только игрок с подтвержденной почтой');
     }
-    if (!user.cityId && !user.stateId) {
-      throw new BadRequestException('Регистрировать фирму могут только граждане какого-либо государства или города');
+    if (!user.settlementId && !user.stateId) {
+      throw new BadRequestException('Регистрировать фирму могут только граждане какого-либо государства или поселения');
     }
     let targetStateId = dto.stateId;
-    if (!targetStateId && dto.cityId) {
-      const cityObj = await this.cityRepository.findOne({
-        where: { id: dto.cityId },
+    if (!targetStateId && dto.settlementId) {
+      const settlementObj = await this.settlementRepository.findOne({
+        where: { id: dto.settlementId },
       });
-      if (cityObj?.stateId) {
-        targetStateId = cityObj.stateId;
+      if (settlementObj?.stateId) {
+        targetStateId = settlementObj.stateId;
       }
     }
 
@@ -96,12 +97,12 @@ export class CompaniesService {
       throw new BadRequestException('Компания с таким названием уже существует');
     }
 
-    if (dto.cityId) {
-      const city = await this.cityRepository.findOne({
-        where: { id: dto.cityId },
+    if (dto.settlementId) {
+      const settlement = await this.settlementRepository.findOne({
+        where: { id: dto.settlementId },
       });
-      if (!city) {
-        throw new NotFoundException('Город юрисдикции не найден');
+      if (!settlement) {
+        throw new NotFoundException('Поселение юрисдикции не найден');
       }
     }
     if (dto.stateId) {
@@ -131,7 +132,7 @@ export class CompaniesService {
       // TODO: сделать загрузку лого компании на s3 хранилище, но пока что этого не будем делать.
       logoUrl: dto.logoUrl || '',
       ownerUsername: username.toLowerCase(),
-      cityId: dto.cityId || null,
+      settlementId: dto.settlementId || null,
       stateId: dto.stateId || null,
       accountId: savedAccount.id,
       isPublic: false,

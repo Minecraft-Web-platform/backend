@@ -3,12 +3,11 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StateEntity } from './entities/state.entity';
-import { CityEntity } from './entities/city.entity';
+import { SettlementEntity } from './entities/settlement.entity';
 import { StateDiplomacyEntity } from './entities/state-diplomacy.entity';
 import { StateDecreeEntity } from './entities/state-decree.entity';
 import { CitizenshipRequestEntity } from './entities/citizenship-request.entity';
@@ -24,23 +23,15 @@ import { MinecraftRconService } from '../minecraft-rcon/minecraft-rcon.service';
 import { EventsService } from '../events/events.service';
 import { AutoNewsService } from '../news/auto-news.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import {
-  CreateCityDto,
-  CreateCitizenshipRequestDto,
   CreateDecreeDto,
-  CreateElectionDto,
   CreateStateDto,
-  NominateCandidateDto,
-  ReviewCitizenshipRequestDto,
   SetDiplomacyDto,
-  UpdateCityDto,
   UpdateStateDto,
-  VoteDto,
 } from './dto/states.dto';
 import { TerritoriesService } from './services/territories.service';
 import { ElectionsService } from './services/elections.service';
-import { CitiesService } from './services/cities.service';
+import { SettlementsService } from './services/settlements.service';
 import { Inject, forwardRef } from '@nestjs/common';
 
 @Injectable()
@@ -48,8 +39,8 @@ export class StatesService {
   constructor(
     @InjectRepository(StateEntity)
     private readonly stateRepo: Repository<StateEntity>,
-    @InjectRepository(CityEntity)
-    private readonly cityRepo: Repository<CityEntity>,
+    @InjectRepository(SettlementEntity)
+    private readonly settlementRepo: Repository<SettlementEntity>,
     @InjectRepository(StateDiplomacyEntity)
     private readonly diplomacyRepo: Repository<StateDiplomacyEntity>,
     @InjectRepository(StateDecreeEntity)
@@ -76,14 +67,14 @@ export class StatesService {
     private readonly eventEmitter: EventEmitter2,
     @Inject(forwardRef(() => TerritoriesService)) private readonly territoriesService: TerritoriesService,
     @Inject(forwardRef(() => ElectionsService)) private readonly electionsService: ElectionsService,
-    @Inject(forwardRef(() => CitiesService)) private readonly citiesService: CitiesService,
+    @Inject(forwardRef(() => SettlementsService)) private readonly settlementsService: SettlementsService,
   ) {}
 
   // --- States ---
   async getAllStates(): Promise<StateEntity[]> {
     return this.stateRepo.find({
       where: { isArchived: false },
-      relations: ['cities', 'cities.citizens', 'citizens'],
+      relations: ['settlements', 'settlements.citizens', 'citizens'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -91,7 +82,7 @@ export class StatesService {
   async getStateById(id: string): Promise<StateEntity> {
     const state = await this.stateRepo.findOne({
       where: { id },
-      relations: ['cities', 'cities.citizens', 'citizens', 'decrees'],
+      relations: ['settlements', 'settlements.citizens', 'citizens', 'decrees'],
     });
     if (!state) {
       throw new NotFoundException('Государство не найдено');
@@ -276,7 +267,7 @@ export class StatesService {
     return this.stateRepo.save(state);
   }
 
-  // --- Cities ---
+  // --- Settlements ---
   // --- Decrees ---
   async getDecreesForState(stateId: string): Promise<StateDecreeEntity[]> {
     return this.decreeRepo.find({
@@ -371,7 +362,7 @@ export class StatesService {
   async digitizeTreasury(
     stateId: string,
     accountType: string = 'state_reserve',
-  ): Promise<{ message: string; items: any[] }> {
+  ): Promise<{ message: string; items: unknown[] }> {
     const response = await this.rconService.executeCommand(`safe digitize ${stateId} ${accountType}`);
     try {
       const parsed = JSON.parse(response);

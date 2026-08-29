@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { CityEntity } from './city.entity';
+import { SettlementEntity } from './settlement.entity';
 import { User } from '../../users/entities/user.entity';
 import { StateDecreeEntity } from './state-decree.entity';
 import { StateTreasuryItemEntity } from './state-treasury-item.entity';
@@ -42,14 +42,14 @@ export class StateEntity {
   @Column({ name: 'voivode_username', type: 'varchar', length: 255, nullable: true })
   voivodeUsername: string | null;
 
-  @Column({ name: 'capital_city_id', type: 'uuid', nullable: true })
-  capitalCityId: string | null;
+  @Column({ name: 'capital_settlement_id', type: 'uuid', nullable: true })
+  capitalSettlementId: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 
-  @OneToMany(() => CityEntity, (city) => city.state)
-  cities?: CityEntity[];
+  @OneToMany(() => SettlementEntity, (settlement) => settlement.state)
+  settlements?: SettlementEntity[];
 
   @OneToMany(() => User, (user) => user.state)
   citizens?: User[];

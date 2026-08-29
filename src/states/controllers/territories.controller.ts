@@ -1,5 +1,4 @@
-import { Body, Controller, Get, Param, Post, Delete, Patch, UseGuards, Query, Req, ForbiddenException } from '@nestjs/common';
-import { StatesService } from '../states.service';
+import { Body, Controller, Get, Param, Post, Delete, Patch, UseGuards, Query, Req,  } from '@nestjs/common';
 import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
 import { IsInt, IsNotEmpty, IsString, IsBoolean } from 'class-validator';
@@ -14,9 +13,9 @@ class CreateTerritoryDto {
   @IsInt() @IsNotEmpty() maxY: number;
   @IsInt() @IsNotEmpty() maxZ: number;
   
-  @IsString() @IsNotEmpty() ownerType: 'player' | 'company' | 'city' | 'state';
+  @IsString() @IsNotEmpty() ownerType: 'player' | 'company' | 'settlement' | 'state';
   @IsString() @IsNotEmpty() ownerId: string;
-  @IsString() @IsNotEmpty() cityId: string;
+  @IsString() @IsNotEmpty() settlementId: string;
 }
 
 class ToggleVisibilityDto {
@@ -62,13 +61,15 @@ export class TerritoriesController {
   @UseGuards(AccessTokenGuard)
   @Delete(':id')
   async deleteTerritoryWeb(@Req() req: AuthenticatedRequest, @Param('id') territoryId: string) {
-    return this.territoriesService.deleteTerritoryWeb(territoryId, req.user);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return this.territoriesService.deleteTerritoryWeb(territoryId, (req as any).user);
   }
 
   @UseGuards(AccessTokenGuard)
   @Patch(':id/visibility')
   async toggleVisibility(@Req() req: AuthenticatedRequest, @Param('id') territoryId: string, @Body() dto: ToggleVisibilityDto) {
-    return this.territoriesService.toggleVisibility(territoryId, dto.isHiddenOnMap, req.user);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return this.territoriesService.toggleVisibility(territoryId, dto.isHiddenOnMap, (req as any).user);
   }
 }
 

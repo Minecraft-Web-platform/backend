@@ -4,7 +4,7 @@ module.exports = {
       project: 'tsconfig.json',
       sourceType: 'module',
     },
-    plugins: ['@typescript-eslint', 'prettier'],
+    plugins: ['@typescript-eslint', 'prettier', 'unused-imports'],
     extends: [
       'plugin:@typescript-eslint/recommended',
       'plugin:prettier/recommended',
@@ -17,7 +17,12 @@ module.exports = {
     rules: {
       'prettier/prettier': ['error'],
 
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': 'off',
+      'unused-imports/no-unused-imports': 'error',
+      'unused-imports/no-unused-vars': [
+        'warn',
+        { 'vars': 'all', 'varsIgnorePattern': '^_', 'args': 'after-used', 'argsIgnorePattern': '^_' }
+      ],
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/consistent-type-imports': 'error',

@@ -1,0 +1,26 @@
+
+> backend@0.0.1 lint
+> eslint "{src,apps,libs,test}/**/*.ts" --fix
+
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/controllers/stock-mod.controller.ts
+  15:3  error  'BuySharesDto' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/services/credit-cards.service.ts
+  14:23  error  '_username' is defined but never used  @typescript-eslint/no-unused-vars
+  18:26  error  '_uuid' is defined but never used      @typescript-eslint/no-unused-vars
+  24:23  error  '_uuid' is defined but never used      @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/services/currencies.service.ts
+  176:11  error  'oldRate' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/oleksandrshtonda/projects/minecraft-website/backend/src/economy/services/economy.service.ts
+    17:7   error  'ITEM_VALUES' is assigned a value but never used      @typescript-eslint/no-unused-vars
+    28:7   error  'GOLD_TIERS' is assigned a value but never used       @typescript-eslint/no-unused-vars
+    33:7   error  'DIAMOND_TIERS' is assigned a value but never used    @typescript-eslint/no-unused-vars
+    37:7   error  'EMERALD_TIERS' is assigned a value but never used    @typescript-eslint/no-unused-vars
+    41:7   error  'NETHERITE_TIERS' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  1072:13  error  'kopeck' is assigned a value but never used           @typescript-eslint/no-unused-vars
+
+✖ 11 problems (11 errors, 0 warnings)
+

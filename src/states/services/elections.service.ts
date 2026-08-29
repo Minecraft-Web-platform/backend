@@ -6,14 +6,14 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ElectionEntity } from '../entities/election.entity';
 import { ElectionCandidateEntity } from '../entities/election-candidate.entity';
 import { ElectionVoteEntity } from '../entities/election-vote.entity';
-import { CityEntity } from '../entities/city.entity';
+import { SettlementEntity } from '../entities/settlement.entity';
 import { StateEntity } from '../entities/state.entity';
 import { User } from '../../users/entities/user.entity';
 import { EventsService } from '../../events/events.service';
 import { AutoNewsService } from '../../news/auto-news.service';
 import { CreateElectionDto, NominateCandidateDto, VoteDto } from '../dto/states.dto';
 import { StatesService } from '../states.service';
-import { CitiesService } from './cities.service';
+import { SettlementsService } from './settlements.service';
 import { TerritoriesService } from './territories.service';
 import { Inject, forwardRef } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -27,8 +27,8 @@ export class ElectionsService {
     private readonly candidateRepo: Repository<ElectionCandidateEntity>,
     @InjectRepository(ElectionVoteEntity)
     private readonly voteRepo: Repository<ElectionVoteEntity>,
-    @InjectRepository(CityEntity)
-    private readonly cityRepo: Repository<CityEntity>,
+    @InjectRepository(SettlementEntity)
+    private readonly settlementRepo: Repository<SettlementEntity>,
     @InjectRepository(StateEntity)
     private readonly stateRepo: Repository<StateEntity>,
     @InjectRepository(User)
@@ -36,7 +36,7 @@ export class ElectionsService {
     private readonly eventsService: EventsService,
     private readonly autoNewsService: AutoNewsService,
     @Inject(forwardRef(() => StatesService)) private readonly statesService: StatesService,
-    @Inject(forwardRef(() => CitiesService)) private readonly citiesService: CitiesService,
+    @Inject(forwardRef(() => SettlementsService)) private readonly settlementsService: SettlementsService,
     @Inject(forwardRef(() => TerritoriesService)) private readonly territoriesService: TerritoriesService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -50,13 +50,13 @@ export class ElectionsService {
       endsAt: new Date(dto.endsAt),
     });
     const saved = await this.electionRepo.save(el);
-    const targetName = dto.targetType === 'state' ? 'государстве' : 'городе';
+    const targetName = dto.targetType === 'state' ? 'государстве' : 'поселении';
     await this.eventsService.createEvent({
       title: `Выборы в ${targetName}`,
       description: `Начался этап регистрации кандидатов. Выборы завершатся ${new Date(dto.endsAt).toLocaleDateString('ru-RU')}.`,
       type: 'election',
       stateId: dto.targetType === 'state' ? dto.targetId : undefined,
-      cityId: dto.targetType === 'city' ? dto.targetId : undefined,
+      settlementId: dto.targetType === 'settlement' ? dto.targetId : undefined,
     });
     return saved;
   }
@@ -92,16 +92,16 @@ export class ElectionsService {
     }
 
     if (el.targetType === 'state') {
-      if (!candidate.cityId) {
-        throw new ForbiddenException('Вы не состоите ни в одном городе этого государства');
+      if (!candidate.settlementId) {
+        throw new ForbiddenException('Вы не состоите ни в одном поселении этого государства');
       }
-      const candidateCity = await this.cityRepo.findOne({ where: { id: candidate.cityId } });
-      if (!candidateCity || candidateCity.stateId !== el.targetId) {
+      const candidateSettlement = await this.settlementRepo.findOne({ where: { id: candidate.settlementId } });
+      if (!candidateSettlement || candidateSettlement.stateId !== el.targetId) {
         throw new ForbiddenException('Вы не являетесь гражданином этого государства');
       }
-    } else if (el.targetType === 'city') {
-      if (candidate.cityId !== el.targetId) {
-        throw new ForbiddenException('Вы не являетесь жителем этого города');
+    } else if (el.targetType === 'settlement') {
+      if (candidate.settlementId !== el.targetId) {
+        throw new ForbiddenException('Вы не являетесь жителем этого поселения');
       }
     }
 
@@ -115,6 +115,7 @@ export class ElectionsService {
   }
 
   async getAllElections(targetType?: string, targetId?: string): Promise<ElectionEntity[]> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = {};
     if (targetType) where.targetType = targetType;
     if (targetId) where.targetId = targetId;
@@ -151,16 +152,16 @@ export class ElectionsService {
     }
 
     if (el.targetType === 'state') {
-      if (!voter.cityId) {
-        throw new ForbiddenException('Вы не состоите ни в одном городе этого государства');
+      if (!voter.settlementId) {
+        throw new ForbiddenException('Вы не состоите ни в одном поселении этого государства');
       }
-      const voterCity = await this.cityRepo.findOne({ where: { id: voter.cityId } });
-      if (!voterCity || voterCity.stateId !== el.targetId) {
+      const voterSettlement = await this.settlementRepo.findOne({ where: { id: voter.settlementId } });
+      if (!voterSettlement || voterSettlement.stateId !== el.targetId) {
         throw new ForbiddenException('Вы не являетесь гражданином этого государства');
       }
-    } else if (el.targetType === 'city') {
-      if (voter.cityId !== el.targetId) {
-        throw new ForbiddenException('Вы не являетесь жителем этого города');
+    } else if (el.targetType === 'settlement') {
+      if (voter.settlementId !== el.targetId) {
+        throw new ForbiddenException('Вы не являетесь жителем этого поселения');
       }
     }
 
@@ -174,7 +175,7 @@ export class ElectionsService {
     await this.candidateRepo.save(cand);
     if (el.targetType === 'state') {
       this.eventEmitter.emit('election.president.voted', { initiatorUsername: voterUsername.toLowerCase() });
-    } else if (el.targetType === 'city') {
+    } else if (el.targetType === 'settlement') {
       this.eventEmitter.emit('election.mayor.voted', { initiatorUsername: voterUsername.toLowerCase() });
     }
 
@@ -208,16 +209,16 @@ export class ElectionsService {
     el.status = 'completed';
     await this.electionRepo.save(el);
     if (winnerUsername) {
-      if (el.targetType === 'city') {
-        const city = await this.citiesService.getCityById(el.targetId);
-        city.mayorUsername = winnerUsername;
-        await this.cityRepo.save(city);
+      if (el.targetType === 'settlement') {
+        const settlement = await this.settlementsService.getSettlementById(el.targetId);
+        settlement.mayorUsername = winnerUsername;
+        await this.settlementRepo.save(settlement);
         this.territoriesService.invalidateBlueMapCache();
 
         await this.eventsService.createEvent({
           title: 'Итоги выборов Мэра',
-          description: `Победителем выборов в городе ${city.name} стал ${winnerUsername} с результатом ${maxVotes} голосов.`,
-          cityId: city.id,
+          description: `Победителем выборов в поселении ${settlement.name} стал ${winnerUsername} с результатом ${maxVotes} голосов.`,
+          settlementId: settlement.id,
           type: 'election',
         });
 
@@ -238,11 +239,11 @@ export class ElectionsService {
       }
     } else {
       // No candidates or votes
-      if (el.targetType === 'city') {
+      if (el.targetType === 'settlement') {
         await this.eventsService.createEvent({
           title: 'Выборы Мэра несостоялись',
           description: 'На выборах не оказалось ни одного кандидата с голосами.',
-          cityId: el.targetId,
+          settlementId: el.targetId,
           type: 'election',
         });
       } else {

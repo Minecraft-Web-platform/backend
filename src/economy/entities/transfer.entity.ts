@@ -20,7 +20,7 @@ export class Transfer {
   currencyCode: string;
 
   @Column({ type: 'float', default: 0 })
-  taxAmount: number; // удержанный налог в казну города/государства
+  taxAmount: number; // удержанный налог в казну поселения/государства
 
   @Column({ type: 'varchar', nullable: true })
   @Index()

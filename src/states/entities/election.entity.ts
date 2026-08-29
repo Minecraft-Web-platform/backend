@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } f
 import { ElectionCandidateEntity } from './election-candidate.entity';
 import { ElectionVoteEntity } from './election-vote.entity';
 
-export type ElectionTargetType = 'state' | 'city';
+export type ElectionTargetType = 'state' | 'settlement';
 export type ElectionStatus = 'nomination' | 'voting' | 'completed';
 
 @Entity('elections')
