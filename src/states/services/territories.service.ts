@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException,  } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -13,10 +13,10 @@ let concaveman: (points: number[][], concavity: number, lengthThreshold: number)
 
 @Injectable()
 export class TerritoriesService {
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private blueMapMarkersCache: Record<string, any> = {};
   private blueMapMarkersCacheTime: { [mapName: string]: number } = {};
-  private readonly CACHE_TTL = 1000 * 60 * 60 * 24;
+  private readonly CACHE_TTL = 5000;
 
   constructor(
     @InjectRepository(TerritoryEntity)
@@ -29,7 +29,7 @@ export class TerritoriesService {
     private readonly companyRepo: Repository<Company>,
     @InjectRepository(StateEntity)
     private readonly stateRepo: Repository<StateEntity>,
-  ) {}
+  ) { }
 
   public invalidateBlueMapCache() {
     this.blueMapMarkersCache = {};
@@ -41,7 +41,7 @@ export class TerritoriesService {
 
     const user = await this.userRepo.findOne({ where: { username } });
     if (user) {
-      profiles.push({ id: user.id.toString(), name: `Личный приват (${username})`, type: 'player' });
+      profiles.push({ id: user.uuid, name: `Личный приват (${username})`, type: 'player' });
     }
 
     const companies = await this.companyRepo.find({ where: { ownerUsername: username } });
@@ -65,7 +65,7 @@ export class TerritoriesService {
   public async getSurveyorDataForPlayer(username: string) {
     const profiles = await this.getProfilesForPlayer(username);
     const user = await this.userRepo.findOne({ where: { username } });
-    
+
     let jurisdictions: { id: string; name: string }[] = [];
     if (user && user.stateId) {
       const settlements = await this.settlementRepo.find({ where: { stateId: user.stateId } });
@@ -82,14 +82,14 @@ export class TerritoriesService {
     return hullArray.map((p: number[]) => ({ x: p[0], z: p[1] }));
   }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private clusterTerritories(territories: Array<{ id: string, minX: number, maxX: number, minZ: number, maxZ: number }>, distanceThreshold: number): any[][] {
     if (!territories || territories.length === 0) return [];
     const clusters: Array<Array<{ id: string, minX: number, maxX: number, minZ: number, maxZ: number }>> = [];
     const visited = new Set<string>();
     const getCenter = (t: { minX: number, maxX: number, minZ: number, maxZ: number }) => ({
-      x: (t.minX + t.maxX) / 2,
-      z: (t.minZ + t.maxZ) / 2,
+      x: (t.minX + t.maxX + 1) / 2,
+      z: (t.minZ + t.maxZ + 1) / 2,
     });
     const getDistance = (t1: { minX: number, maxX: number, minZ: number, maxZ: number }, t2: { minX: number, maxX: number, minZ: number, maxZ: number }) => {
       const c1 = getCenter(t1);
@@ -119,8 +119,9 @@ export class TerritoriesService {
     return clusters;
   }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async addTerritory(dto: any) {
+    console.log("RECEIVED DTO:", dto);
     const { minX, minY, minZ, maxX, maxY, maxZ, ownerType, ownerId, settlementId } = dto;
     const actualMinX = Math.min(minX, maxX);
     const actualMaxX = Math.max(minX, maxX);
@@ -158,7 +159,7 @@ export class TerritoriesService {
     const territory = this.territoryRepo.create({
       ownerType,
       ownerId,
-      settlementId,
+      settlementId: settlementId === "null" || !settlementId ? null : settlementId,
       minX: actualMinX,
       minY: actualMinY,
       minZ: actualMinZ,
@@ -180,20 +181,20 @@ export class TerritoriesService {
     return { success: true };
   }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async checkTerritoryAccess(territory: TerritoryEntity, user: any) {
     if (user.role === 'admin' || user.role === 'mod') return true;
     if (territory.ownerType === 'player') {
-        if (territory.ownerId !== user.id) throw new ForbiddenException('Это не ваша территория');
+      if (territory.ownerId !== user.uuid) throw new ForbiddenException('Это не ваша территория');
     } else if (territory.ownerType === 'settlement') {
-        const settlement = await this.settlementRepo.findOne({ where: { id: territory.ownerId as string } });
-        if (!settlement || settlement.mayorUsername?.toLowerCase() !== user.username.toLowerCase()) {
-            throw new ForbiddenException('Вы не мэр этого поселения');
-        }
+      const settlement = await this.settlementRepo.findOne({ where: { id: territory.ownerId as string } });
+      if (!settlement || settlement.mayorUsername?.toLowerCase() !== user.username.toLowerCase()) {
+        throw new ForbiddenException('Вы не мэр этого поселения');
+      }
     }
   }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async deleteTerritoryWeb(id: string, user: any) {
     const territory = await this.territoryRepo.findOne({ where: { id } });
     if (!territory) throw new NotFoundException('Территория не найдена');
@@ -203,7 +204,7 @@ export class TerritoriesService {
     return { success: true };
   }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async toggleVisibility(id: string, isHidden: boolean, user: any) {
     const territory = await this.territoryRepo.findOne({ where: { id } });
     if (!territory) throw new NotFoundException('Территория не найдена');
@@ -217,6 +218,17 @@ export class TerritoriesService {
   public async getAllTerritories() {
     return this.territoryRepo.find({
       relations: ['settlement', 'settlement.state', 'property'],
+    });
+  }
+
+  public async getTerritoriesByPlayer(username: string) {
+    const user = await this.userRepo.findOne({ where: { username_lower: username.toLowerCase() } });
+    if (!user) return [];
+
+    return this.territoryRepo.find({
+      where: { ownerType: 'player', ownerId: user.uuid },
+      relations: ['settlement', 'settlement.state', 'property'],
+      order: { createdAt: 'DESC' },
     });
   }
 
@@ -239,7 +251,7 @@ export class TerritoriesService {
     const stateBordersData: Record<string, unknown> = {};
 
     const settlementGroups: Record<string, { settlement: SettlementEntity; territories: TerritoryEntity[] }> = {};
-    const stateGroups: Record<string, { state: StateEntity; territories: TerritoryEntity[], settlementHulls: { id: string, points: {x:number, z:number}[], minX: number, maxX: number, minZ: number, maxZ: number, minY: number, maxY: number }[] }> = {};
+    const stateGroups: Record<string, { state: StateEntity; territories: TerritoryEntity[], settlementHulls: { id: string, points: { x: number, z: number }[], minX: number, maxX: number, minZ: number, maxZ: number, minY: number, maxY: number }[] }> = {};
 
     territories.forEach((t) => {
       if (t.settlement) {
@@ -285,17 +297,17 @@ export class TerritoriesService {
       // 1. 3D Зона (без label, чтобы избежать бага LabelPopup при клике)
       markersData[t.id + '_zone'] = {
         type: 'extrude',
-        position: { x: (t.minX + t.maxX) / 2, y: t.maxY ?? 64, z: (t.minZ + t.maxZ) / 2 },
+        position: { x: (t.minX + t.maxX + 1) / 2, y: t.maxY ?? 64, z: (t.minZ + t.maxZ + 1) / 2 },
         shape: [
           { x: t.minX, z: t.minZ },
-          { x: t.maxX, z: t.minZ },
-          { x: t.maxX, z: t.maxZ },
-          { x: t.minX, z: t.maxZ },
+          { x: t.maxX + 1, z: t.minZ },
+          { x: t.maxX + 1, z: t.maxZ + 1 },
+          { x: t.minX, z: t.maxZ + 1 },
         ],
         shapeMinY: t.minY ?? -64,
         shapeMaxY: t.maxY ?? 319,
-        fillColor: { r, g, b, a: 0.15 }, // Делаем приваты прозрачнее
-        lineColor: { r, g, b, a: 0.3 }, // Границы приватов мягкие
+        fillColor: { r, g, b, a: 0.4 }, // Делаем приваты более заметными
+        lineColor: { r, g, b, a: 1.0 }, // Границы приватов четкие
         depthTestEnabled: false,
         listed: false, // Не дублируем в меню
         ...(detailHtml ? { detail: detailHtml } : {}),
@@ -318,9 +330,9 @@ export class TerritoriesService {
         cluster.forEach((t) => {
           points.push(
             { x: t.minX, z: t.minZ },
-            { x: t.maxX, z: t.minZ },
-            { x: t.maxX, z: t.maxZ },
-            { x: t.minX, z: t.maxZ },
+            { x: t.maxX + 1, z: t.minZ },
+            { x: t.maxX + 1, z: t.maxZ + 1 },
+            { x: t.minX, z: t.maxZ + 1 },
           );
           const tMin = t.minY ?? -64;
           const tMax = t.maxY ?? 319;
@@ -384,9 +396,9 @@ export class TerritoriesService {
       largestCluster.forEach((t) => {
         labelPoints.push(
           { x: t.minX, z: t.minZ },
-          { x: t.maxX, z: t.minZ },
-          { x: t.maxX, z: t.maxZ },
-          { x: t.minX, z: t.maxZ },
+          { x: t.maxX + 1, z: t.minZ },
+          { x: t.maxX + 1, z: t.maxZ + 1 },
+          { x: t.minX, z: t.maxZ + 1 },
         );
         const tMax = t.maxY ?? 319;
         if (tMax > labelMaxY) labelMaxY = tMax;
@@ -412,14 +424,10 @@ export class TerritoriesService {
 
     Object.values(stateGroups).forEach((group) => {
       if (!group.settlementHulls || group.settlementHulls.length === 0) return;
-      const clusters = this.clusterTerritories(group.settlementHulls, 1500);
+      const clusters = this.clusterTerritories(group.settlementHulls, 300);
       if (clusters.length === 0) return;
 
-      let largestCluster = clusters[0];
-
       clusters.forEach((cluster, index) => {
-        if (cluster.length > largestCluster.length) largestCluster = cluster;
-
         const points: { x: number; z: number }[] = [];
         let minY = Infinity;
         let maxY = -Infinity;
@@ -462,34 +470,34 @@ export class TerritoriesService {
           depthTestEnabled: false,
           listed: false,
         };
+
+        const labelPoints: { x: number; z: number }[] = [];
+        let labelMaxY = -Infinity;
+        cluster.forEach((hullObj) => {
+          labelPoints.push(...hullObj.points);
+          if (hullObj.maxY > labelMaxY) labelMaxY = hullObj.maxY;
+        });
+
+        const emblemUrl = group.state.coatOfArmsUrl || group.state.flagUrl;
+        const flagHtml = emblemUrl
+          ? `<img src="${emblemUrl}" style="width: 48px; height: 48px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>`
+          : '';
+
+        const centerX = (Math.min(...labelPoints.map((p) => p.x)) + Math.max(...labelPoints.map((p) => p.x))) / 2;
+        const centerZ = (Math.min(...labelPoints.map((p) => p.z)) + Math.max(...labelPoints.map((p) => p.z))) / 2;
+
+        stateBordersData[`${group.state.id}_label_${index}`] = {
+          type: 'html',
+          html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 18px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${group.state.name}</div></div>`,
+          position: { x: centerX, y: labelMaxY + 30, z: centerZ },
+          anchor: { x: 0.5, y: 0.5 },
+          classes: [],
+          listed: false,
+        };
       });
-
-      const labelPoints: { x: number; z: number }[] = [];
-      let labelMaxY = -Infinity;
-      largestCluster.forEach((hullObj) => {
-        labelPoints.push(...hullObj.points);
-        if (hullObj.maxY > labelMaxY) labelMaxY = hullObj.maxY;
-      });
-
-      const emblemUrl = group.state.coatOfArmsUrl || group.state.flagUrl;
-      const flagHtml = emblemUrl
-        ? `<img src="${emblemUrl}" style="width: 48px; height: 48px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5)); border-radius: 4px;" /><br>`
-        : '';
-
-      const centerX = (Math.min(...labelPoints.map((p) => p.x)) + Math.max(...labelPoints.map((p) => p.x))) / 2;
-      const centerZ = (Math.min(...labelPoints.map((p) => p.z)) + Math.max(...labelPoints.map((p) => p.z))) / 2;
-
-      stateBordersData[`${group.state.id}_label`] = {
-        type: 'html',
-        html: `<div style="display: flex; flex-direction: column; align-items: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 18px; text-align: center; pointer-events: none; transform: translate(-50%, -50%);">${flagHtml}<div>${group.state.name}</div></div>`,
-        position: { x: centerX, y: labelMaxY + 30, z: centerZ },
-        anchor: { x: 0.5, y: 0.5 },
-        classes: [],
-        listed: false,
-      };
     });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let originalMarkers: Record<string, any> = {};
     try {
       // Пытаемся получить оригинальные маркеры (игроки, точки), чтобы не стереть их
@@ -504,16 +512,16 @@ export class TerritoriesService {
     originalMarkers['settlement_zones_layer'] = {
       label: 'Приваты (зоны)',
       toggleable: true,
-      defaultHidden: true,
-      defaultHide: true,
+      defaultHidden: false,
+      defaultHide: false,
       markers: markersData,
     };
 
     originalMarkers['settlement_borders_layer_v2'] = {
       label: 'Границы поселений',
       toggleable: true,
-      defaultHidden: true,
-      defaultHide: true,
+      defaultHidden: false,
+      defaultHide: false,
       markers: bordersData,
     };
 

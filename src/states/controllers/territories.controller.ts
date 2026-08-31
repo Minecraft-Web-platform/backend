@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Delete, Patch, UseGuards, Query, Req,  } from '@nestjs/common';
 import { ModIpGuard } from '../../auth/guards/mod-ip.guard';
 import { AccessTokenGuard } from '../../auth/guards/access-token.guard';
-import { IsInt, IsNotEmpty, IsString, IsBoolean } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, IsBoolean, IsOptional } from 'class-validator';
 import { TerritoriesService } from '../services/territories.service';
 import { AuthenticatedRequest } from '../../auth/types/auth-request.type';
 
@@ -15,7 +15,7 @@ class CreateTerritoryDto {
   
   @IsString() @IsNotEmpty() ownerType: 'player' | 'company' | 'settlement' | 'state';
   @IsString() @IsNotEmpty() ownerId: string;
-  @IsString() @IsNotEmpty() settlementId: string;
+  @IsString() @IsOptional() settlementId?: string;
 }
 
 class ToggleVisibilityDto {
@@ -39,6 +39,11 @@ export class TerritoriesController {
   @Get('surveyor-data/:username')
   async getSurveyorData(@Param('username') username: string) {
     return this.territoriesService.getSurveyorDataForPlayer(username);
+  }
+
+  @Get('user/:username')
+  async getUserTerritories(@Param('username') username: string) {
+    return this.territoriesService.getTerritoriesByPlayer(username);
   }
 
   @Get('bluemap-markers')
