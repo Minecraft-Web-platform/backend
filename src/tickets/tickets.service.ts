@@ -11,7 +11,7 @@ export class TicketsService {
     private readonly userService: UsersService,
   ) {}
 
-  public async sendTicket(body: TicketDTO) {
+  public async sendTicket(body: TicketDTO, files?: Express.Multer.File[]) {
     const { username, email, topic, content } = body;
     const userInDB = await this.userService.getByUsername(username.toLowerCase());
 
@@ -23,7 +23,7 @@ export class TicketsService {
       throw new ForbiddenException('Подтверди почту');
     }
 
-    const strategy = new TicketStrategy(username, topic, content, email);
+    const strategy = new TicketStrategy(username, topic, content, email, files);
 
     return this.emailService.send('oleksandr.shtonda.dev@gmail.com', strategy);
   }

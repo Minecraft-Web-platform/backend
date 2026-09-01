@@ -6,6 +6,7 @@ export class TicketStrategy implements MailTemplateStrategy {
     private readonly subject: string,
     private readonly content: string,
     private readonly email: string,
+    private readonly files?: Express.Multer.File[],
   ) {}
 
   getSubject(): string {
@@ -22,5 +23,13 @@ export class TicketStrategy implements MailTemplateStrategy {
   }
   getText(): string {
     return `Тема: ${this.subject}\n\n${this.content}\nПочта отправителя: ${this.email}`;
+  }
+
+  getAttachments() {
+    if (!this.files) return [];
+    return this.files.map((file) => ({
+      filename: file.originalname,
+      content: file.buffer,
+    }));
   }
 }

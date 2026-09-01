@@ -15,12 +15,15 @@ export class EmailService implements EmailServiceContract {
 
   async send(to: string, mailTemplate: MailTemplateStrategy): Promise<void> {
     try {
+      const attachments = mailTemplate.getAttachments?.();
+
       await this.resend.emails.send({
         from: this.configService.get<string>('SMTP_FROM') ?? 'send@khroniki-kraya.com',
         to,
         subject: mailTemplate.getSubject(),
         html: mailTemplate.getHTML(),
         text: mailTemplate.getText(),
+        attachments: attachments?.length ? attachments : undefined,
       });
     } catch (error) {
       console.error('Resend error:', error);

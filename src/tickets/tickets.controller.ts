@@ -1,4 +1,5 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { TicketsService } from './tickets.service';
 import { TicketDTO } from './dtos/ticket.dto';
 
@@ -7,7 +8,11 @@ export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
   @Post()
-  public async send(@Body() body: TicketDTO) {
-    return this.ticketsService.sendTicket(body);
+  @UseInterceptors(FilesInterceptor('files', 3))
+  public async send(
+    @Body() body: TicketDTO,
+    @UploadedFiles() files?: Express.Multer.File[]
+  ) {
+    return this.ticketsService.sendTicket(body, files);
   }
 }
