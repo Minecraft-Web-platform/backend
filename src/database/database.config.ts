@@ -8,12 +8,20 @@ import 'dotenv/config';
 
 export const typeOrmOptions: TypeOrmModuleOptions = {
   type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  username: process.env.DB_USER || 'minecraft',
-  password: process.env.DB_PASSWORD || 'minecraft_secret',
-  database: process.env.DB_NAME || 'minecraft_db',
+  ...(process.env.DATABASE_URL
+    ? { url: process.env.DATABASE_URL }
+    : {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '5432', 10),
+        username: process.env.DB_USER || 'minecraft',
+        password: process.env.DB_PASSWORD || 'minecraft_secret',
+        database: process.env.DB_NAME || 'minecraft_db',
+      }),
+  ssl:
+    process.env.DB_SSL === 'true'
+      ? { rejectUnauthorized: false }
+      : false,
   entities: [User, ConfirmationCode, News, NewsBlock, NewsCategory],
   autoLoadEntities: true,
-  synchronize: process.env.DB_SYNCHRONIZE === 'true' || true,
+  synchronize: process.env.DB_SYNCHRONIZE !== undefined ? process.env.DB_SYNCHRONIZE === 'true' : true,
 };
