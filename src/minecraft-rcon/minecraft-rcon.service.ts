@@ -27,7 +27,7 @@ export class MinecraftRconService {
       }
 
       const countMatch = response.match(/There are (\d+) of a max of \d+ players online:?/i);
-      const playersMatch = response.match(/players online:\s*(.*)$/i);
+      const playersMatch = response.match(/players online:\s*(.*)/i);
 
       const playersCount = countMatch ? Number(countMatch[1]) : 0;
 
