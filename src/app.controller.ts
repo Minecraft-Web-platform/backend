@@ -42,4 +42,38 @@ export class AppController {
     }
     return res.status(404).send('Background not found');
   }
+
+  @Get('favicon.ico')
+  getFavicon(@Res() res: Response) {
+    const possiblePaths = [
+      path.join(__dirname, '..', 'assets', 'favicon.ico'),
+      path.join(__dirname, 'assets', 'favicon.ico'),
+      path.resolve(process.cwd(), 'assets', 'favicon.ico'),
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        res.setHeader('Content-Type', 'image/x-icon');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.sendFile(p);
+      }
+    }
+    return res.status(404).send('Favicon not found');
+  }
+
+  @Get('favicon.svg')
+  getFaviconSvg(@Res() res: Response) {
+    const possiblePaths = [
+      path.join(__dirname, '..', 'assets', 'favicon.svg'),
+      path.join(__dirname, 'assets', 'favicon.svg'),
+      path.resolve(process.cwd(), 'assets', 'favicon.svg'),
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.sendFile(p);
+      }
+    }
+    return res.status(404).send('Favicon not found');
+  }
 }
