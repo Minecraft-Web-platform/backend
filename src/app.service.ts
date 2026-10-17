@@ -182,6 +182,29 @@ export class AppService {
       background-position: center;
       background-size: cover;
       background-attachment: fixed;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .bg-video {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      object-position: center center;
+      z-index: -2;
+      pointer-events: none;
+    }
+
+    .bg-overlay {
+      position: fixed;
+      inset: 0;
+      background-image: 
+        radial-gradient(ellipse at 50% 45%, rgba(220, 38, 38, 0.16) 0%, rgba(194, 65, 12, 0.1) 40%, rgba(12, 7, 9, 0.5) 100%),
+        linear-gradient(rgba(18, 9, 11, 0.25), rgba(12, 6, 8, 0.42));
+      z-index: -1;
+      pointer-events: none;
     }
 
     .card {
@@ -423,6 +446,10 @@ export class AppService {
   </style>
 </head>
 <body>
+  <video class="bg-video" autoplay loop muted playsinline poster="/bg.jpg">
+    <source src="/bg.mp4" type="video/mp4">
+  </video>
+  <div class="bg-overlay"></div>
 
   <div class="card">
     <div class="badge-status">

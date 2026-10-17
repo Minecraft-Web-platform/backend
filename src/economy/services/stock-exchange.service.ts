@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Company } from '../entities/company.entity';
 import { CompanyShare } from '../entities/company-share.entity';
 import { Account } from '../entities/account.entity';
@@ -33,6 +33,7 @@ export class StockExchangeService {
     private readonly economyService: EconomyService,
     private readonly autoNewsService: AutoNewsService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly dataSource: DataSource,
   ) {}
 
   public async getPublicCompanies(): Promise<Company[]> {
@@ -249,127 +250,146 @@ export class StockExchangeService {
       throw new BadRequestException('Неверный ID покупателя');
     }
 
-    const company = await this.companyRepository.findOne({
-      where: { id: companyId },
-    });
-    if (!company || !company.isPublic || !company.exchangeStateId) {
-      throw new NotFoundException('Компания не торгуется на бирже');
-    }
-    if (company.availableShares < count) {
-      throw new BadRequestException('Недостаточно доступных акций на бирже');
-    }
+    const result = await this.dataSource.transaction(async (manager) => {
+      const companyRepo = manager.getRepository(Company);
+      const stateRepo = manager.getRepository(StateEntity);
+      const shareRepo = manager.getRepository(CompanyShare);
+      const accountRepo = manager.getRepository(Account);
+      const sharePriceHistoryRepo = manager.getRepository(CompanySharePriceHistory);
 
-    const exchangeState = await this.stateRepository.findOne({ where: { id: company.exchangeStateId } });
-    if (!exchangeState || !exchangeState.treasuryAccountNumber) {
-      throw new BadRequestException('Биржа недоступна (отсутствует счет казны государства)');
-    }
-
-    const companyAccount = await this.accountRepository.findOne({ where: { id: company.accountId as string } });
-    if (!companyAccount) {
-      throw new NotFoundException('Коммерческий счет компании не найден');
-    }
-
-    // Найти счет покупателя
-    let buyerAccount: Account | null = null;
-    if (buyerType === 'player') {
-      buyerAccount = await this.accountRepository.findOne({
-        where: { ownerUsername: buyerId, type: 'personal', currencyCode: companyAccount.currencyCode },
+      const company = await companyRepo.findOne({
+        where: { id: companyId },
+        lock: { mode: 'pessimistic_write' },
       });
-    } else if (buyerType === 'state') {
-      const state = await this.stateRepository.findOne({ where: { id: buyerId } });
-      if (state?.treasuryAccountNumber) {
-        buyerAccount = await this.accountRepository.findOne({ where: { accountNumber: state.treasuryAccountNumber } });
+      if (!company || !company.isPublic || !company.exchangeStateId) {
+        throw new NotFoundException('Компания не торгуется на бирже');
       }
-    } else if (buyerType === 'company') {
-      const comp = await this.companyRepository.findOne({ where: { id: buyerId } });
-      if (comp?.accountId) {
-        buyerAccount = await this.accountRepository.findOne({ where: { id: comp.accountId } });
+      if (company.availableShares < count) {
+        throw new BadRequestException('Недостаточно доступных акций на бирже');
       }
-    }
 
-    if (!buyerAccount || buyerAccount.currencyCode !== companyAccount.currencyCode) {
-      throw new BadRequestException(`Отсутствует нужный счет в валюте биржи (${companyAccount.currencyCode})`);
-    }
+      const exchangeState = await stateRepo.findOne({ where: { id: company.exchangeStateId } });
+      if (!exchangeState || !exchangeState.treasuryAccountNumber) {
+        throw new BadRequestException('Биржа недоступна (отсутствует счет казны государства)');
+      }
 
-    const oldPrice = company.sharePrice;
-    const priceMultiplier = 1 + (count / company.totalShares) * 0.4;
-    const newPrice = Number((oldPrice * priceMultiplier).toFixed(2));
-    const executionPrice = Number(((oldPrice + newPrice) / 2).toFixed(2));
+      const companyAccount = await accountRepo.findOne({ where: { id: company.accountId as string } });
+      if (!companyAccount) {
+        throw new NotFoundException('Коммерческий счет компании не найден');
+      }
 
-    const totalPrice = Number((count * executionPrice).toFixed(2));
-    const tradingFeeRate = exchangeState.exchangeTradingFee || 0;
-    const tradingFee = Number(((totalPrice * tradingFeeRate) / 100).toFixed(2));
-    const amountToCompany = Number((totalPrice - tradingFee).toFixed(2));
+      // Найти счет покупателя
+      let buyerAccount: Account | null = null;
+      if (buyerType === 'player') {
+        buyerAccount = await accountRepo.findOne({
+          where: { ownerUsername: buyerId, type: 'personal', currencyCode: companyAccount.currencyCode },
+        });
+      } else if (buyerType === 'state') {
+        const state = await stateRepo.findOne({ where: { id: buyerId } });
+        if (state?.treasuryAccountNumber) {
+          buyerAccount = await accountRepo.findOne({ where: { accountNumber: state.treasuryAccountNumber } });
+        }
+      } else if (buyerType === 'company') {
+        const comp = await companyRepo.findOne({ where: { id: buyerId } });
+        if (comp?.accountId) {
+          buyerAccount = await accountRepo.findOne({ where: { id: comp.accountId } });
+        }
+      }
 
-    if (buyerAccount.balance < totalPrice) {
-      throw new BadRequestException('Недостаточно средств на личном счете');
-    }
+      if (!buyerAccount || buyerAccount.currencyCode !== companyAccount.currencyCode) {
+        throw new BadRequestException(`Отсутствует нужный счет в валюте биржи (${companyAccount.currencyCode})`);
+      }
 
-    // Перевод компании (за вычетом комиссии)
-    if (amountToCompany > 0) {
-      await this.economyService.transferMoney(username, {
-        fromNumber: buyerAccount.accountNumber,
-        toNumber: companyAccount.accountNumber,
-        amount: amountToCompany,
-        description: `Покупка ${count} акций компании ${company.name}`,
+      const oldPrice = company.sharePrice;
+      const priceMultiplier = 1 + (count / company.totalShares) * 0.4;
+      const newPrice = Number((oldPrice * priceMultiplier).toFixed(2));
+      const executionPrice = Number(((oldPrice + newPrice) / 2).toFixed(2));
+
+      const totalPrice = Number((count * executionPrice).toFixed(2));
+      const tradingFeeRate = exchangeState.exchangeTradingFee || 0;
+      const tradingFee = Number(((totalPrice * tradingFeeRate) / 100).toFixed(2));
+      const amountToCompany = Number((totalPrice - tradingFee).toFixed(2));
+
+      if (buyerAccount.balance < totalPrice) {
+        throw new BadRequestException('Недостаточно средств на личном счете');
+      }
+
+      // Перевод компании (за вычетом комиссии) в рамках общей транзакции
+      if (amountToCompany > 0) {
+        await this.economyService.transferMoney(
+          username,
+          {
+            fromNumber: buyerAccount.accountNumber,
+            toNumber: companyAccount.accountNumber,
+            amount: amountToCompany,
+            description: `Покупка ${count} акций компании ${company.name}`,
+          },
+          manager,
+        );
+      }
+
+      // Перевод комиссии государству в рамках общей транзакции
+      if (tradingFee > 0) {
+        await this.economyService.transferMoney(
+          username,
+          {
+            fromNumber: buyerAccount.accountNumber,
+            toNumber: exchangeState.treasuryAccountNumber,
+            amount: tradingFee,
+            description: `Комиссия биржи (покупка акций ${company.name})`,
+          },
+          manager,
+        );
+      }
+
+      // Обновляем акции инвестора
+      let shareEntry = await shareRepo.findOne({
+        where: {
+          companyId: company.id,
+          ownerType: buyerType,
+          ownerId: buyerId,
+        },
       });
-    }
 
-    // Перевод комиссии государству
-    if (tradingFee > 0) {
-      await this.economyService.transferMoney(username, {
-        fromNumber: buyerAccount.accountNumber,
-        toNumber: exchangeState.treasuryAccountNumber,
-        amount: tradingFee,
-        description: `Комиссия биржи (покупка акций ${company.name})`,
-      });
-    }
+      if (!shareEntry) {
+        shareEntry = shareRepo.create({
+          companyId: company.id,
+          ownerType: buyerType,
+          ownerId: buyerId,
+          sharesCount: count,
+          boughtAtPrice: executionPrice,
+        });
+      } else {
+        const totalCount = shareEntry.sharesCount + count;
+        shareEntry.boughtAtPrice = Number(
+          ((shareEntry.boughtAtPrice * shareEntry.sharesCount + executionPrice * count) / totalCount).toFixed(2),
+        );
+        shareEntry.sharesCount = totalCount;
+      }
 
-    // Обновляем акции инвестора
-    let shareEntry = await this.shareRepository.findOne({
-      where: {
+      await shareRepo.save(shareEntry);
+
+      // Пересчет цены акции (при покупке цена растет)
+      company.sharePrice = newPrice;
+      company.availableShares -= count;
+      company.priceChange24h = Number((((company.sharePrice - oldPrice) / oldPrice) * 100).toFixed(2));
+
+      await companyRepo.save(company);
+
+      const history = sharePriceHistoryRepo.create({
         companyId: company.id,
-        ownerType: buyerType,
-        ownerId: buyerId,
-      },
-    });
-
-    if (!shareEntry) {
-      shareEntry = this.shareRepository.create({
-        companyId: company.id,
-        ownerType: buyerType,
-        ownerId: buyerId,
-        sharesCount: count,
-        boughtAtPrice: executionPrice,
+        price: company.sharePrice,
       });
-    } else {
-      const totalCount = shareEntry.sharesCount + count;
-      shareEntry.boughtAtPrice = Number(
-        ((shareEntry.boughtAtPrice * shareEntry.sharesCount + executionPrice * count) / totalCount).toFixed(2),
-      );
-      shareEntry.sharesCount = totalCount;
-    }
+      await sharePriceHistoryRepo.save(history);
 
-    await this.shareRepository.save(shareEntry);
-
-    // Пересчет цены акции (при покупке цена растет)
-    company.sharePrice = newPrice;
-    company.availableShares -= count;
-    company.priceChange24h = Number((((company.sharePrice - oldPrice) / oldPrice) * 100).toFixed(2));
-
-    await this.companyRepository.save(company);
-
-    const history = this.sharePriceHistoryRepository.create({
-      companyId: company.id,
-      price: company.sharePrice,
+      return { company, portfolio: shareEntry };
     });
-    await this.sharePriceHistoryRepository.save(history);
 
     if (buyerType === 'player') {
       this.eventEmitter.emit('shares.bought', { initiatorUsername: username.toLowerCase() });
     }
 
-    return { company, portfolio: shareEntry };
+    return result;
   }
 
   public async sellShares(
@@ -401,108 +421,126 @@ export class StockExchangeService {
       throw new BadRequestException('Неверный ID продавца');
     }
 
-    const company = await this.companyRepository.findOne({
-      where: { id: companyId },
-    });
-    if (!company || !company.isPublic || !company.exchangeStateId) {
-      throw new NotFoundException('Компания не торгуется на бирже');
-    }
+    return await this.dataSource.transaction(async (manager) => {
+      const companyRepo = manager.getRepository(Company);
+      const stateRepo = manager.getRepository(StateEntity);
+      const shareRepo = manager.getRepository(CompanyShare);
+      const accountRepo = manager.getRepository(Account);
+      const sharePriceHistoryRepo = manager.getRepository(CompanySharePriceHistory);
 
-    const exchangeState = await this.stateRepository.findOne({ where: { id: company.exchangeStateId } });
-    if (!exchangeState || !exchangeState.treasuryAccountNumber) {
-      throw new BadRequestException('Биржа недоступна (отсутствует счет казны государства)');
-    }
+      const company = await companyRepo.findOne({
+        where: { id: companyId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!company || !company.isPublic || !company.exchangeStateId) {
+        throw new NotFoundException('Компания не торгуется на бирже');
+      }
 
-    const shareEntry = await this.shareRepository.findOne({
-      where: {
+      const exchangeState = await stateRepo.findOne({ where: { id: company.exchangeStateId } });
+      if (!exchangeState || !exchangeState.treasuryAccountNumber) {
+        throw new BadRequestException('Биржа недоступна (отсутствует счет казны государства)');
+      }
+
+      const shareEntry = await shareRepo.findOne({
+        where: {
+          companyId: company.id,
+          ownerType: sellerType,
+          ownerId: sellerId,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!shareEntry || shareEntry.sharesCount < count) {
+        throw new BadRequestException('У вас недостаточно акций для продажи');
+      }
+
+      const companyAccount = await accountRepo.findOne({ where: { id: company.accountId as string } });
+      if (!companyAccount) {
+        throw new NotFoundException('Коммерческий счет компании не найден');
+      }
+
+      // Найти счет продавца
+      let sellerAccount: Account | null = null;
+      if (sellerType === 'player') {
+        sellerAccount = await accountRepo.findOne({
+          where: { ownerUsername: sellerId, type: 'personal', currencyCode: companyAccount.currencyCode },
+        });
+      } else if (sellerType === 'state') {
+        const state = await stateRepo.findOne({ where: { id: sellerId } });
+        if (state?.treasuryAccountNumber) {
+          sellerAccount = await accountRepo.findOne({ where: { accountNumber: state.treasuryAccountNumber } });
+        }
+      } else if (sellerType === 'company') {
+        const comp = await companyRepo.findOne({ where: { id: sellerId } });
+        if (comp?.accountId) {
+          sellerAccount = await accountRepo.findOne({ where: { id: comp.accountId } });
+        }
+      }
+
+      if (!sellerAccount || sellerAccount.currencyCode !== companyAccount.currencyCode) {
+        throw new BadRequestException(`Отсутствует нужный счет в валюте биржи (${companyAccount.currencyCode})`);
+      }
+
+      const oldPrice = company.sharePrice;
+      const priceMultiplier = Math.max(1 - (count / company.totalShares) * 0.4, 0.1);
+      const newPrice = Number((oldPrice * priceMultiplier).toFixed(2));
+      const executionPrice = Number(((oldPrice + newPrice) / 2).toFixed(2));
+
+      const totalPrice = Number((count * executionPrice).toFixed(2));
+      const tradingFeeRate = exchangeState.exchangeTradingFee || 0;
+      const tradingFee = Number(((totalPrice * tradingFeeRate) / 100).toFixed(2));
+      const amountToSeller = Number((totalPrice - tradingFee).toFixed(2));
+
+      if (companyAccount.balance < totalPrice) {
+        throw new BadRequestException('У компании недостаточно ликвидности для выкупа акций');
+      }
+
+      // Перевод от компании продавцу (за вычетом комиссии) в рамках общей транзакции
+      if (amountToSeller > 0) {
+        await this.economyService.transferMoney(
+          company.ownerUsername,
+          {
+            fromNumber: companyAccount.accountNumber,
+            toNumber: sellerAccount.accountNumber,
+            amount: amountToSeller,
+            description: `Продажа ${count} акций компании ${company.name}`,
+          },
+          manager,
+        );
+      }
+
+      // Перевод комиссии государству от компании (которая удерживается из суммы продавца)
+      if (tradingFee > 0) {
+        await this.economyService.transferMoney(
+          company.ownerUsername,
+          {
+            fromNumber: companyAccount.accountNumber,
+            toNumber: exchangeState.treasuryAccountNumber,
+            amount: tradingFee,
+            description: `Комиссия биржи (продажа акций ${company.name})`,
+          },
+          manager,
+        );
+      }
+
+      shareEntry.sharesCount -= count;
+      await shareRepo.save(shareEntry);
+
+      // При продаже цена акций снижается
+      company.sharePrice = newPrice;
+      company.availableShares += count;
+      company.priceChange24h = Number((((company.sharePrice - oldPrice) / oldPrice) * 100).toFixed(2));
+
+      await companyRepo.save(company);
+
+      const history = sharePriceHistoryRepo.create({
         companyId: company.id,
-        ownerType: sellerType,
-        ownerId: sellerId,
-      },
+        price: company.sharePrice,
+      });
+      await sharePriceHistoryRepo.save(history);
+
+      return { company, portfolio: shareEntry };
     });
-
-    if (!shareEntry || shareEntry.sharesCount < count) {
-      throw new BadRequestException('У вас недостаточно акций для продажи');
-    }
-
-    const companyAccount = await this.accountRepository.findOne({ where: { id: company.accountId as string } });
-    if (!companyAccount) {
-      throw new NotFoundException('Коммерческий счет компании не найден');
-    }
-
-    // Найти счет продавца
-    let sellerAccount: Account | null = null;
-    if (sellerType === 'player') {
-      sellerAccount = await this.accountRepository.findOne({
-        where: { ownerUsername: sellerId, type: 'personal', currencyCode: companyAccount.currencyCode },
-      });
-    } else if (sellerType === 'state') {
-      const state = await this.stateRepository.findOne({ where: { id: sellerId } });
-      if (state?.treasuryAccountNumber) {
-        sellerAccount = await this.accountRepository.findOne({ where: { accountNumber: state.treasuryAccountNumber } });
-      }
-    } else if (sellerType === 'company') {
-      const comp = await this.companyRepository.findOne({ where: { id: sellerId } });
-      if (comp?.accountId) {
-        sellerAccount = await this.accountRepository.findOne({ where: { id: comp.accountId } });
-      }
-    }
-
-    if (!sellerAccount || sellerAccount.currencyCode !== companyAccount.currencyCode) {
-      throw new BadRequestException(`Отсутствует нужный счет в валюте биржи (${companyAccount.currencyCode})`);
-    }
-
-    const oldPrice = company.sharePrice;
-    const priceMultiplier = Math.max(1 - (count / company.totalShares) * 0.4, 0.1);
-    const newPrice = Number((oldPrice * priceMultiplier).toFixed(2));
-    const executionPrice = Number(((oldPrice + newPrice) / 2).toFixed(2));
-
-    const totalPrice = Number((count * executionPrice).toFixed(2));
-    const tradingFeeRate = exchangeState.exchangeTradingFee || 0;
-    const tradingFee = Number(((totalPrice * tradingFeeRate) / 100).toFixed(2));
-    const amountToSeller = Number((totalPrice - tradingFee).toFixed(2));
-
-    if (companyAccount.balance < totalPrice) {
-      throw new BadRequestException('У компании недостаточно ликвидности для выкупа акций');
-    }
-
-    // Перевод от компании продавцу (за вычетом комиссии)
-    if (amountToSeller > 0) {
-      await this.economyService.transferMoney(company.ownerUsername, {
-        fromNumber: companyAccount.accountNumber,
-        toNumber: sellerAccount.accountNumber,
-        amount: amountToSeller,
-        description: `Продажа ${count} акций компании ${company.name}`,
-      });
-    }
-
-    // Перевод комиссии государству от компании (которая удерживается из суммы продавца)
-    if (tradingFee > 0) {
-      await this.economyService.transferMoney(company.ownerUsername, {
-        fromNumber: companyAccount.accountNumber,
-        toNumber: exchangeState.treasuryAccountNumber,
-        amount: tradingFee,
-        description: `Комиссия биржи (продажа акций ${company.name})`,
-      });
-    }
-
-    shareEntry.sharesCount -= count;
-    await this.shareRepository.save(shareEntry);
-
-    // При продаже цена акций снижается
-    company.sharePrice = newPrice;
-    company.availableShares += count;
-    company.priceChange24h = Number((((company.sharePrice - oldPrice) / oldPrice) * 100).toFixed(2));
-
-    await this.companyRepository.save(company);
-
-    const history = this.sharePriceHistoryRepository.create({
-      companyId: company.id,
-      price: company.sharePrice,
-    });
-    await this.sharePriceHistoryRepository.save(history);
-
-    return { company, portfolio: shareEntry };
   }
 
   public async payDividends(

@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, DataSource, EntityManager } from 'typeorm';
 import { Property, PropertyCategory, PropertyOwnerType } from '../entities/property.entity';
 import { Company } from '../entities/company.entity';
 import { StateEntity } from '../../states/entities/state.entity';
@@ -53,22 +53,26 @@ export class PropertyService {
     private currenciesService: CurrenciesService,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    private dataSource: DataSource,
   ) {}
 
-  private async getAccountForUser(ownerId: string, currencyCode: string): Promise<Account> {
-    const acc = await this.accountRepo.findOne({
+  private async getAccountForUser(ownerId: string, currencyCode: string, manager?: EntityManager): Promise<Account> {
+    const accRepo = manager ? manager.getRepository(Account) : this.accountRepo;
+    const acc = await accRepo.findOne({
       where: { ownerUsername: ownerId, currencyCode },
     });
     if (!acc) throw new NotFoundException(`У владельца ${ownerId} нет счета в валюте ${currencyCode}`);
     return acc;
   }
 
-  private async getTreasuryAccount(stateId: string, currencyCode: string): Promise<Account> {
-    const state = await this.stateRepo.findOne({ where: { id: stateId } });
+  private async getTreasuryAccount(stateId: string, currencyCode: string, manager?: EntityManager): Promise<Account> {
+    const stateRepo = manager ? manager.getRepository(StateEntity) : this.stateRepo;
+    const accRepo = manager ? manager.getRepository(Account) : this.accountRepo;
+    const state = await stateRepo.findOne({ where: { id: stateId } });
     if (!state || !state.treasuryAccountNumber) {
       throw new NotFoundException(`Государство ${stateId} не найдено или у него нет казначейского счета`);
     }
-    const acc = await this.accountRepo.findOne({
+    const acc = await accRepo.findOne({
       where: { accountNumber: state.treasuryAccountNumber, currencyCode },
     });
     if (!acc)
@@ -76,19 +80,28 @@ export class PropertyService {
     return acc;
   }
 
-  private async getAccountByOwnerIdAndType(ownerId: string, ownerType: string, currencyCode: string): Promise<Account> {
+  private async getAccountByOwnerIdAndType(
+    ownerId: string,
+    ownerType: string,
+    currencyCode: string,
+    manager?: EntityManager,
+  ): Promise<Account> {
+    const userRepo = manager ? manager.getRepository(User) : this.userRepo;
+    const companyRepo = manager ? manager.getRepository(Company) : this.companyRepo;
+    const accRepo = manager ? manager.getRepository(Account) : this.accountRepo;
+
     if (ownerType === 'personal') {
-      const user = await this.userRepo.findOne({ where: { uuid: ownerId } });
+      const user = await userRepo.findOne({ where: { uuid: ownerId } });
       if (!user) throw new NotFoundException('Владелец-игрок не найден');
-      return this.getAccountForUser(user.username_lower, currencyCode);
+      return this.getAccountForUser(user.username_lower, currencyCode, manager);
     } else if (ownerType === 'company') {
-      const company = await this.companyRepo.findOne({ where: { id: ownerId } });
+      const company = await companyRepo.findOne({ where: { id: ownerId } });
       if (!company || !company.accountId) throw new NotFoundException('Компания или её счет не найдены');
-      const acc = await this.accountRepo.findOne({ where: { id: company.accountId, currencyCode } });
+      const acc = await accRepo.findOne({ where: { id: company.accountId, currencyCode } });
       if (!acc) throw new NotFoundException(`У компании ${company.name} нет счета в валюте ${currencyCode}`);
       return acc;
     } else if (ownerType === 'government') {
-      return this.getTreasuryAccount(ownerId, currencyCode);
+      return this.getTreasuryAccount(ownerId, currencyCode, manager);
     }
     throw new BadRequestException('Неизвестный тип владельца');
   }
@@ -243,58 +256,77 @@ export class PropertyService {
     newOwnerId: string,
     newOwnerType: PropertyOwnerType,
   ): Promise<Property> {
-    const prop = await this.propertyRepo.findOne({ where: { id: propertyId } });
-    if (!prop) throw new NotFoundException('Имущество не найдено');
-    if (!prop.isForSale || !prop.price) throw new BadRequestException('Это имущество не продается');
-    if (prop.forSaleToId && prop.forSaleToId !== newOwnerId)
-      throw new BadRequestException('Это персональное предложение предназначено не для вас');
+    return await this.dataSource.transaction(async (manager) => {
+      const propertyRepo = manager.getRepository(Property);
+      const territoryRepo = manager.getRepository(TerritoryEntity);
 
-    const currency = await this.currenciesService.getCurrencyByStateId(prop.stateId);
-    if (!currency) throw new NotFoundException(`Валюта для государства ${prop.stateId} не найдена`);
-
-    const buyerAccount = await this.getAccountByOwnerIdAndType(newOwnerId, newOwnerType, currency.code);
-    const sellerAccount = await this.getAccountByOwnerIdAndType(prop.ownerId, prop.ownerType, currency.code);
-    const treasuryAccount = await this.getTreasuryAccount(prop.stateId, currency.code);
-
-    const tax = prop.price * currency.propertySalesTaxRate;
-    const sellerGets = prop.price - tax;
-
-    // Buyer -> Seller
-    await this.economyService.transferMoney(buyerUsername, {
-      fromNumber: buyerAccount.accountNumber,
-      toNumber: sellerAccount.accountNumber,
-      amount: sellerGets,
-      description: `Покупка имущества: ${prop.name}`,
-    });
-
-    // Buyer -> Treasury (Tax)
-    if (tax > 0) {
-      await this.economyService.transferMoney(buyerUsername, {
-        fromNumber: buyerAccount.accountNumber,
-        toNumber: treasuryAccount.accountNumber,
-        amount: tax,
-        description: `Налог с продажи имущества: ${prop.name}`,
+      const prop = await propertyRepo.findOne({
+        where: { id: propertyId },
+        lock: { mode: 'pessimistic_write' },
       });
-    }
+      if (!prop) throw new NotFoundException('Имущество не найдено');
+      if (!prop.isForSale || !prop.price) throw new BadRequestException('Это имущество не продается');
+      if (prop.forSaleToId && prop.forSaleToId !== newOwnerId)
+        throw new BadRequestException('Это персональное предложение предназначено не для вас');
 
-    prop.ownerId = newOwnerId;
-    prop.ownerType = newOwnerType;
-    prop.isForSale = false;
-    prop.price = null;
-    prop.forSaleToId = null;
-    const savedProp = await this.propertyRepo.save(prop);
+      const currency = await this.currenciesService.getCurrencyByStateId(prop.stateId);
+      if (!currency) throw new NotFoundException(`Валюта для государства ${prop.stateId} не найдена`);
 
-    if (prop.territoryId) {
-      const territory = await this.territoryRepo.findOne({ where: { id: prop.territoryId } });
-      if (territory) {
-        territory.ownerId = newOwnerId;
-        if (newOwnerType === 'personal') territory.ownerType = 'player';
-        else if (newOwnerType === 'company') territory.ownerType = 'company';
-        await this.territoryRepo.save(territory);
+      const buyerAccount = await this.getAccountByOwnerIdAndType(newOwnerId, newOwnerType, currency.code, manager);
+      const sellerAccount = await this.getAccountByOwnerIdAndType(prop.ownerId, prop.ownerType, currency.code, manager);
+      const treasuryAccount = await this.getTreasuryAccount(prop.stateId, currency.code, manager);
+
+      const tax = Number((prop.price * currency.propertySalesTaxRate).toFixed(2));
+      const sellerGets = Number((prop.price - tax).toFixed(2));
+
+      // Buyer -> Seller (в рамках общей транзакции)
+      await this.economyService.transferMoney(
+        buyerUsername,
+        {
+          fromNumber: buyerAccount.accountNumber,
+          toNumber: sellerAccount.accountNumber,
+          amount: sellerGets,
+          description: `Покупка имущества: ${prop.name}`,
+        },
+        manager,
+      );
+
+      // Buyer -> Treasury (Tax) (в рамках общей транзакции)
+      if (tax > 0) {
+        await this.economyService.transferMoney(
+          buyerUsername,
+          {
+            fromNumber: buyerAccount.accountNumber,
+            toNumber: treasuryAccount.accountNumber,
+            amount: tax,
+            description: `Налог с продажи имущества: ${prop.name}`,
+          },
+          manager,
+        );
       }
-    }
 
-    return savedProp;
+      prop.ownerId = newOwnerId;
+      prop.ownerType = newOwnerType;
+      prop.isForSale = false;
+      prop.price = null;
+      prop.forSaleToId = null;
+      const savedProp = await propertyRepo.save(prop);
+
+      if (prop.territoryId) {
+        const territory = await territoryRepo.findOne({
+          where: { id: prop.territoryId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (territory) {
+          territory.ownerId = newOwnerId;
+          if (newOwnerType === 'personal') territory.ownerType = 'player';
+          else if (newOwnerType === 'company') territory.ownerType = 'company';
+          await territoryRepo.save(territory);
+        }
+      }
+
+      return savedProp;
+    });
   }
 
   async getPropertiesByOwner(ownerId: string): Promise<Property[]> {

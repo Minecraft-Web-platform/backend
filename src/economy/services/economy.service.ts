@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, In } from 'typeorm';
+import { Repository, IsNull, In, DataSource, EntityManager } from 'typeorm';
 import { Account, AccountType } from '../entities/account.entity';
 import { CreditCard } from '../entities/credit-card.entity';
 import { Transfer } from '../entities/transfer.entity';
@@ -52,6 +52,7 @@ const NETHERITE_TIERS = [
 @Injectable()
 export class EconomyService {
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(Account)
     private readonly accountRepository: Repository<Account>,
     @InjectRepository(CreditCard)
@@ -595,110 +596,148 @@ export class EconomyService {
       amount: number;
       description?: string;
     },
+    externalManager?: EntityManager,
   ): Promise<Transfer> {
     await this.assertUserStateHasCurrency(username);
     if (dto.amount <= 0) {
       throw new BadRequestException('Сумма перевода должна быть больше 0');
     }
 
-    // Найти счет отправителя
-    const senderAccount = await this.resolveAccount(dto.fromNumber);
-    if (!senderAccount) {
-      throw new NotFoundException('Счет отправителя не найден');
-    }
-    if (!(await this.hasAccessToAccount(senderAccount, username))) {
-      throw new BadRequestException('Вы можете переводить средства только со своего счета');
-    }
-    if (senderAccount.balance < dto.amount) {
-      throw new BadRequestException('Недостаточно средств на счете');
-    }
+    const runTransfer = async (manager: EntityManager) => {
+      // 1. Предварительно находим счета по идентификаторам
+      const senderAccountInitial = await this.resolveAccount(dto.fromNumber, manager);
+      if (!senderAccountInitial) {
+        throw new NotFoundException('Счет отправителя не найден');
+      }
+      if (!(await this.hasAccessToAccount(senderAccountInitial, username))) {
+        throw new BadRequestException('Вы можете переводить средства только со своего счета');
+      }
 
-    // Найти счет получателя (по номеру счета, номеру карты или никнейму)
-    const receiverAccount = await this.resolveAccount(dto.toNumber);
-    if (!receiverAccount) {
-      throw new NotFoundException('Счет или получатель не найден');
-    }
-    if (senderAccount.id === receiverAccount.id) {
-      throw new BadRequestException('Нельзя перевести средства самому себе');
-    }
+      const receiverAccountInitial = await this.resolveAccount(dto.toNumber, manager);
+      if (!receiverAccountInitial) {
+        throw new NotFoundException('Счет или получатель не найден');
+      }
+      if (senderAccountInitial.id === receiverAccountInitial.id) {
+        throw new BadRequestException('Нельзя перевести средства самому себе');
+      }
 
-    if (senderAccount.currencyCode !== receiverAccount.currencyCode) {
-      throw new BadRequestException(
-        `Перевод отклонен: валюты счетов не совпадают (${senderAccount.currencyCode} и ${receiverAccount.currencyCode}). Прямая конвертация запрещена.`,
-      );
-    }
+      if (senderAccountInitial.currencyCode !== receiverAccountInitial.currencyCode) {
+        throw new BadRequestException(
+          `Перевод отклонен: валюты счетов не совпадают (${senderAccountInitial.currencyCode} и ${receiverAccountInitial.currencyCode}). Прямая конвертация запрещена.`,
+        );
+      }
 
-    let taxAmount = 0;
-    let treasuryAccountToReceiveTax: Account | null = null;
+      const currencyRepo = manager.getRepository(Currency);
+      const stateRepo = manager.getRepository(StateEntity);
+      const accRepo = manager.getRepository(Account);
+      const transferRepo = manager.getRepository(Transfer);
 
-    // Определяем государство-эмитента валюты
-    const currency = await this.currencyRepository.findOne({
-      where: { code: senderAccount.currencyCode },
-    });
+      let taxAmount = 0;
+      let treasuryAccountId: string | null = null;
 
-    if (currency && currency.stateId) {
-      const state = await this.stateRepository.findOne({
-        where: { id: currency.stateId },
+      // 2. Определяем государство-эмитента валюты и счет казны для налога
+      const currency = await currencyRepo.findOne({
+        where: { code: senderAccountInitial.currencyCode },
       });
 
-      if (state && state.treasuryAccountNumber) {
-        let taxRate = 0;
+      if (currency && currency.stateId) {
+        const state = await stateRepo.findOne({
+          where: { id: currency.stateId },
+        });
 
-        const isSenderCompany = senderAccount.type === 'company';
-        const isReceiverCompany = receiverAccount.type === 'company';
+        if (state && state.treasuryAccountNumber) {
+          let taxRate = 0;
+          const isSenderCompany = senderAccountInitial.type === 'company';
+          const isReceiverCompany = receiverAccountInitial.type === 'company';
 
-        if (!isSenderCompany && !isReceiverCompany) {
-          // Игрок -> Игрок
-          taxRate = state.playerToPlayerTransferFee || 0;
-        } else {
-          // Игрок -> Компания, Компания -> Игрок, Компания -> Компания
-          taxRate = state.playerToCompanyTransferFee || 0;
-        }
+          if (!isSenderCompany && !isReceiverCompany) {
+            taxRate = state.playerToPlayerTransferFee || 0;
+          } else {
+            taxRate = state.playerToCompanyTransferFee || 0;
+          }
 
-        taxAmount = Number(((dto.amount * taxRate) / 100).toFixed(2));
-        if (taxAmount > 0) {
-          treasuryAccountToReceiveTax = await this.accountRepository.findOne({
-            where: { accountNumber: state.treasuryAccountNumber },
-          });
-          if (!treasuryAccountToReceiveTax) {
-            taxAmount = 0;
+          taxAmount = Number(((dto.amount * taxRate) / 100).toFixed(2));
+          if (taxAmount > 0) {
+            const treasuryAcc = await accRepo.findOne({
+              where: { accountNumber: state.treasuryAccountNumber },
+            });
+            if (treasuryAcc) {
+              treasuryAccountId = treasuryAcc.id;
+            } else {
+              taxAmount = 0;
+            }
           }
         }
       }
-    }
 
-    const netAmount = Number((dto.amount - taxAmount).toFixed(2));
+      // 3. Блокируем строки счетов в БД (PESSIMISTIC_WRITE) с сортировкой ID для предотвращения дедлоков
+      const idsToLock = Array.from(
+        new Set([
+          senderAccountInitial.id,
+          receiverAccountInitial.id,
+          ...(treasuryAccountId ? [treasuryAccountId] : []),
+        ]),
+      ).sort();
 
-    senderAccount.balance = Number((senderAccount.balance - dto.amount).toFixed(2));
-    receiverAccount.balance = Number((receiverAccount.balance + netAmount).toFixed(2));
+      const lockedAccounts = await accRepo.find({
+        where: { id: In(idsToLock) },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    const accountsToSave = [senderAccount, receiverAccount];
+      const senderAccount = lockedAccounts.find((a) => a.id === senderAccountInitial.id);
+      const receiverAccount = lockedAccounts.find((a) => a.id === receiverAccountInitial.id);
+      const treasuryAccountToReceiveTax = treasuryAccountId
+        ? lockedAccounts.find((a) => a.id === treasuryAccountId) || null
+        : null;
 
-    if (taxAmount > 0 && treasuryAccountToReceiveTax) {
-      if (treasuryAccountToReceiveTax.accountNumber === senderAccount.accountNumber) {
-        senderAccount.balance = Number((senderAccount.balance + taxAmount).toFixed(2));
-      } else if (treasuryAccountToReceiveTax.accountNumber === receiverAccount.accountNumber) {
-        receiverAccount.balance = Number((receiverAccount.balance + taxAmount).toFixed(2));
-      } else {
-        treasuryAccountToReceiveTax.balance = Number((treasuryAccountToReceiveTax.balance + taxAmount).toFixed(2));
-        accountsToSave.push(treasuryAccountToReceiveTax);
+      if (!senderAccount || !receiverAccount) {
+        throw new NotFoundException('Один из счетов для перевода не удалось заблокировать');
       }
-    }
 
-    await this.accountRepository.save(accountsToSave);
+      if (senderAccount.balance < dto.amount) {
+        throw new BadRequestException('Недостаточно средств на счете');
+      }
 
-    const transfer = this.transferRepository.create({
-      fromAccountNumber: senderAccount.accountNumber,
-      toAccountNumber: receiverAccount.accountNumber,
-      amount: dto.amount,
-      currencyCode: senderAccount.currencyCode,
-      taxAmount,
-      taxAccountNumber: treasuryAccountToReceiveTax ? treasuryAccountToReceiveTax.accountNumber : null,
-      description: dto.description || 'Перевод средств',
-    });
+      const netAmount = Number((dto.amount - taxAmount).toFixed(2));
 
-    const savedTransfer = await this.transferRepository.save(transfer);
+      senderAccount.balance = Number((senderAccount.balance - dto.amount).toFixed(2));
+      receiverAccount.balance = Number((receiverAccount.balance + netAmount).toFixed(2));
 
+      const accountsToSave = [senderAccount, receiverAccount];
+
+      if (taxAmount > 0 && treasuryAccountToReceiveTax) {
+        if (treasuryAccountToReceiveTax.accountNumber === senderAccount.accountNumber) {
+          senderAccount.balance = Number((senderAccount.balance + taxAmount).toFixed(2));
+        } else if (treasuryAccountToReceiveTax.accountNumber === receiverAccount.accountNumber) {
+          receiverAccount.balance = Number((receiverAccount.balance + taxAmount).toFixed(2));
+        } else {
+          treasuryAccountToReceiveTax.balance = Number((treasuryAccountToReceiveTax.balance + taxAmount).toFixed(2));
+          accountsToSave.push(treasuryAccountToReceiveTax);
+        }
+      }
+
+      await accRepo.save(accountsToSave);
+
+      const transfer = transferRepo.create({
+        fromAccountNumber: senderAccount.accountNumber,
+        toAccountNumber: receiverAccount.accountNumber,
+        amount: dto.amount,
+        currencyCode: senderAccount.currencyCode,
+        taxAmount,
+        taxAccountNumber: treasuryAccountToReceiveTax ? treasuryAccountToReceiveTax.accountNumber : null,
+        description: dto.description || 'Перевод средств',
+      });
+
+      const savedTransfer = await transferRepo.save(transfer);
+
+      return { savedTransfer, currency, receiverAccount };
+    };
+
+    const { savedTransfer, currency, receiverAccount } = externalManager
+      ? await runTransfer(externalManager)
+      : await this.dataSource.transaction(runTransfer);
+
+    // 4. Эмитируем события ПОСЛЕ успешного коммита транзакции в БД
     if (currency && currency.totalIssued > 0) {
       if (dto.amount >= currency.totalIssued / 10) {
         this.eventEmitter.emit('transaction.large', { initiatorUsername: username.toLowerCase() });
@@ -718,8 +757,6 @@ export class EconomyService {
             const owner = await this.userRepository.findOne({
               where: { username_lower: company.ownerUsername.toLowerCase() },
             });
-            // Иностранная юрисдикция, если игрок не состоит в том же государстве, где зарегистрирована компания
-            // (или если компания в государстве, а игрок вообще без государства)
             if (owner && company.stateId && owner.stateId !== company.stateId) {
               this.eventEmitter.emit('economy.corporation', { initiatorUsername: company.ownerUsername.toLowerCase() });
             }
@@ -870,27 +907,29 @@ export class EconomyService {
     });
   }
 
-  private async resolveAccount(identifier: string): Promise<Account | null> {
+  private async resolveAccount(identifier: string, manager?: EntityManager): Promise<Account | null> {
     const cleanIdentifier = identifier.replace(/\D/g, '');
+    const accRepo = manager ? manager.getRepository(Account) : this.accountRepository;
+    const cardRepo = manager ? manager.getRepository(CreditCard) : this.cardRepository;
 
     // 1. По номеру счета (20 цифр)
-    const byAccNum = await this.accountRepository.findOne({
+    const byAccNum = await accRepo.findOne({
       where: { accountNumber: cleanIdentifier || identifier },
     });
     if (byAccNum) return byAccNum;
 
     // 2. По номеру карты (16 цифр)
-    const card = await this.cardRepository.findOne({
+    const card = await cardRepo.findOne({
       where: { cardNumber: cleanIdentifier || identifier },
     });
     if (card) {
-      return this.accountRepository.findOne({
+      return accRepo.findOne({
         where: { id: card.accountId },
       });
     }
 
     // 3. По никнейму (первый личный счет игрока)
-    const byUsername = await this.accountRepository.findOne({
+    const byUsername = await accRepo.findOne({
       where: { ownerUsername: identifier.toLowerCase(), type: 'personal' },
     });
     return byUsername || null;

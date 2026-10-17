@@ -43,6 +43,23 @@ export class AppController {
     return res.status(404).send('Background not found');
   }
 
+  @Get('bg.mp4')
+  getBgVideo(@Res() res: Response) {
+    const possiblePaths = [
+      path.join(__dirname, '..', 'assets', 'bg.mp4'),
+      path.join(__dirname, 'assets', 'bg.mp4'),
+      path.resolve(process.cwd(), 'assets', 'bg.mp4'),
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.sendFile(p);
+      }
+    }
+    return res.status(404).send('Video not found');
+  }
+
   @Get('favicon.ico')
   getFavicon(@Res() res: Response) {
     const possiblePaths = [
