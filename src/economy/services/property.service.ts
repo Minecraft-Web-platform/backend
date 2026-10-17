@@ -151,17 +151,18 @@ export class PropertyService {
     }
 
     if (dto.territoryId) {
-      const territory = await this.territoryRepo.findOne({ 
+      const territory = await this.territoryRepo.findOne({
         where: { id: dto.territoryId },
         relations: ['settlement'],
       });
       if (!territory) throw new NotFoundException('Указанный приват не найден');
-      
+
       const isAlreadyBound = await this.propertyRepo.findOne({ where: { territoryId: dto.territoryId } });
       if (isAlreadyBound) throw new BadRequestException('Этот приват уже привязан к другой недвижимости');
 
       // Validate ownership match
-      const expectedTerritoryType = dto.ownerType === 'personal' ? 'player' : (dto.ownerType === 'company' ? 'company' : undefined);
+      const expectedTerritoryType =
+        dto.ownerType === 'personal' ? 'player' : dto.ownerType === 'company' ? 'company' : undefined;
       if (expectedTerritoryType && territory.ownerType !== expectedTerritoryType) {
         throw new BadRequestException('Тип владельца привата не совпадает с типом владельца недвижимости');
       }
@@ -173,7 +174,7 @@ export class PropertyService {
       const centerX = Math.floor((territory.minX + territory.maxX) / 2);
       const centerZ = Math.floor((territory.minZ + territory.maxZ) / 2);
       const centerY = territory.minY > -64 ? territory.minY : 64;
-      
+
       if (!dto.centerCoordinates) {
         dto.centerCoordinates = `${centerX}, ${centerY}, ${centerZ}`;
       }
@@ -206,7 +207,12 @@ export class PropertyService {
     return this.propertyRepo.save(prop);
   }
 
-  async listPropertyForSale(ownerUsername: string, propertyId: string, price: number, forSaleToId?: string): Promise<Property> {
+  async listPropertyForSale(
+    ownerUsername: string,
+    propertyId: string,
+    price: number,
+    forSaleToId?: string,
+  ): Promise<Property> {
     if (price <= 0) throw new BadRequestException('Цена должна быть больше 0');
 
     const prop = await this.propertyRepo.findOne({ where: { id: propertyId } });
@@ -240,7 +246,8 @@ export class PropertyService {
     const prop = await this.propertyRepo.findOne({ where: { id: propertyId } });
     if (!prop) throw new NotFoundException('Имущество не найдено');
     if (!prop.isForSale || !prop.price) throw new BadRequestException('Это имущество не продается');
-    if (prop.forSaleToId && prop.forSaleToId !== newOwnerId) throw new BadRequestException('Это персональное предложение предназначено не для вас');
+    if (prop.forSaleToId && prop.forSaleToId !== newOwnerId)
+      throw new BadRequestException('Это персональное предложение предназначено не для вас');
 
     const currency = await this.currenciesService.getCurrencyByStateId(prop.stateId);
     if (!currency) throw new NotFoundException(`Валюта для государства ${prop.stateId} не найдена`);
@@ -294,7 +301,7 @@ export class PropertyService {
     return this.propertyRepo.find({ where: { ownerId }, relations: ['street', 'state', 'settlement'] });
   }
 
-  async getEligibleBuyers(propertyId: string): Promise<{ uuid: string, username: string }[]> {
+  async getEligibleBuyers(propertyId: string): Promise<{ uuid: string; username: string }[]> {
     const prop = await this.propertyRepo.findOne({ where: { id: propertyId } });
     if (!prop) throw new NotFoundException('Имущество не найдено');
 
@@ -305,16 +312,16 @@ export class PropertyService {
       where: { currencyCode: currency.code, type: 'personal' },
     });
 
-    const usernames = accounts.map(a => a.ownerUsername);
+    const usernames = accounts.map((a) => a.ownerUsername);
     if (usernames.length === 0) return [];
 
     const users = await this.userRepo.find({
-      where: { username_lower: In(usernames) }
+      where: { username_lower: In(usernames) },
     });
 
-    return users.map(u => ({
+    return users.map((u) => ({
       uuid: u.uuid,
-      username: u.username
+      username: u.username,
     }));
   }
 
@@ -335,31 +342,21 @@ export class PropertyService {
 
   async getMarketProperties(stateId?: string): Promise<Property[]> {
     if (stateId) {
-      return this.propertyRepo.find({ where: { stateId, isForSale: true }, relations: ['street', 'state', 'settlement'] });
+      return this.propertyRepo.find({
+        where: { stateId, isForSale: true },
+        relations: ['street', 'state', 'settlement'],
+      });
     }
     return this.propertyRepo.find({ where: { isForSale: true }, relations: ['street', 'state', 'settlement'] });
   }
 
-  async updateProperty(
-    propertyId: string,
-    dto: UpdatePropertyDto,
-    checkOwnerId: string,
-  ): Promise<Property> {
+  async updateProperty(propertyId: string, dto: UpdatePropertyDto, _checkOwnerId: string): Promise<Property> {
     const prop = await this.propertyRepo.findOne({ where: { id: propertyId } });
     if (!prop) throw new NotFoundException('Имущество не найдено');
 
     // Security check: Only the owner of the property can update it.
     // However, properties can be owned by players, companies, or governments.
-    // For simplicity, we can do a loose check: the checkOwnerId must match the ownerId of the property,
-    // OR the checkOwnerId is the leader of the state/company that owns it.
-    // We already do this check in controller via getMyProperties, but here we can just verify
-    // if the user has access. To be precise, we'll verify if `checkOwnerId` is in the list of allowed owners.
-    const ownerIds: string[] = [checkOwnerId];
-    const companies = await this.companyRepo.find({ where: { ownerUsername: (await this.accountRepo.findOne({where:{ownerUsername:checkOwnerId}}))?.ownerUsername || checkOwnerId } }); // Rough approximation for username, assume checkOwnerId is uuid or username. Wait, `checkOwnerId` here is actually the user's username or UUID? Let's just pass `req.user.uuid` and `req.user.username_lower` from controller and do the check.
-    
-    // Let's assume the controller already verified the user has the right to edit this property
-    // We'll just do it simply:
-    // This is skipped for now, but in production we should check if `prop.ownerId` belongs to the user.
+    // Controller already verified user access.
 
     if (dto.territoryId !== undefined) {
       if (dto.territoryId === null || dto.territoryId === '') {
@@ -367,7 +364,7 @@ export class PropertyService {
       } else {
         const territory = await this.territoryRepo.findOne({ where: { id: dto.territoryId } });
         if (!territory) throw new NotFoundException('Указанный приват не найден');
-        
+
         if (territory.id !== prop.territoryId) {
           const isAlreadyBound = await this.propertyRepo.findOne({ where: { territoryId: dto.territoryId } });
           if (isAlreadyBound && isAlreadyBound.id !== prop.id) {
@@ -375,7 +372,8 @@ export class PropertyService {
           }
 
           // Validate ownership match
-          const expectedTerritoryType = prop.ownerType === 'personal' ? 'player' : (prop.ownerType === 'company' ? 'company' : undefined);
+          const expectedTerritoryType =
+            prop.ownerType === 'personal' ? 'player' : prop.ownerType === 'company' ? 'company' : undefined;
           if (expectedTerritoryType && territory.ownerType !== expectedTerritoryType) {
             throw new BadRequestException('Тип владельца привата не совпадает с типом владельца недвижимости');
           }

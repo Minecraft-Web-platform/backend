@@ -5,11 +5,12 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { logger: ['log', 'error', 'fatal', 'warn'] });
-  const origins: string[] = [
+  const origins = [
     'https://khroniki-kraya.com',
     'https://www.khroniki-kraya.com',
     'https://frontend-bay-eight-67.vercel.app',
     'http://localhost:5173',
+    /^http:\/\/(localhost|127\.0\.0\.1|172\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+):\d+$/, // Allow local network for mobile dev
   ];
 
   app.enableCors({

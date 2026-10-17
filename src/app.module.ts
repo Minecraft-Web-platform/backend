@@ -17,6 +17,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EconomyModule } from './economy/economy.module';
 import { UploadModule } from './upload/upload.module';
 import { AchievementsModule } from './achievements/achievements.module';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -43,5 +45,7 @@ import { AchievementsModule } from './achievements/achievements.module';
     UploadModule,
     AchievementsModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}

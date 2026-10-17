@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UploadController } from './upload.controller';
+import { UploadService } from './upload.service';
+import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 
 describe('UploadController', () => {
   let controller: UploadController;
@@ -7,7 +9,18 @@ describe('UploadController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UploadController],
-    }).compile();
+      providers: [
+        {
+          provide: UploadService,
+          useValue: {
+            uploadFile: jest.fn(),
+          },
+        },
+      ],
+    })
+      .overrideGuard(AccessTokenGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<UploadController>(UploadController);
   });

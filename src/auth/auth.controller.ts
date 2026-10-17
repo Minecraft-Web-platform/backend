@@ -40,7 +40,7 @@ export class AuthController {
   @Post('logout')
   @UseGuards(AccessTokenGuard)
   @AllowBanned()
-  public async logout(@Req() request: AuthenticatedRequest) {
+  public async logout() {
     return { success: true };
   }
 

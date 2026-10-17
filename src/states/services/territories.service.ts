@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -29,7 +29,7 @@ export class TerritoriesService {
     private readonly companyRepo: Repository<Company>,
     @InjectRepository(StateEntity)
     private readonly stateRepo: Repository<StateEntity>,
-  ) { }
+  ) {}
 
   public invalidateBlueMapCache() {
     this.blueMapMarkersCache = {};
@@ -37,7 +37,7 @@ export class TerritoriesService {
   }
 
   public async getProfilesForPlayer(username: string) {
-    const profiles: { id: string, name: string, type: string }[] = [];
+    const profiles: { id: string; name: string; type: string }[] = [];
 
     const user = await this.userRepo.findOne({ where: { username } });
     if (user) {
@@ -69,7 +69,7 @@ export class TerritoriesService {
     let jurisdictions: { id: string; name: string }[] = [];
     if (user && user.stateId) {
       const settlements = await this.settlementRepo.find({ where: { stateId: user.stateId } });
-      jurisdictions = settlements.map(c => ({ id: c.id, name: c.name }));
+      jurisdictions = settlements.map((c) => ({ id: c.id, name: c.name }));
     }
 
     return { jurisdictions, profiles };
@@ -82,16 +82,17 @@ export class TerritoriesService {
     return hullArray.map((p: number[]) => ({ x: p[0], z: p[1] }));
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private clusterTerritories(territories: Array<{ id: string, minX: number, maxX: number, minZ: number, maxZ: number }>, distanceThreshold: number): any[][] {
+  private clusterTerritories<
+    T extends { id: string; minX: number; maxX: number; minZ: number; maxZ: number },
+  >(territories: T[], distanceThreshold: number): T[][] {
     if (!territories || territories.length === 0) return [];
-    const clusters: Array<Array<{ id: string, minX: number, maxX: number, minZ: number, maxZ: number }>> = [];
+    const clusters: T[][] = [];
     const visited = new Set<string>();
-    const getCenter = (t: { minX: number, maxX: number, minZ: number, maxZ: number }) => ({
+    const getCenter = (t: T) => ({
       x: (t.minX + t.maxX + 1) / 2,
       z: (t.minZ + t.maxZ + 1) / 2,
     });
-    const getDistance = (t1: { minX: number, maxX: number, minZ: number, maxZ: number }, t2: { minX: number, maxX: number, minZ: number, maxZ: number }) => {
+    const getDistance = (t1: T, t2: T) => {
       const c1 = getCenter(t1);
       const c2 = getCenter(t2);
       return Math.hypot(c1.x - c2.x, c1.z - c2.z);
@@ -121,7 +122,7 @@ export class TerritoriesService {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async addTerritory(dto: any) {
-    console.log("RECEIVED DTO:", dto);
+    console.log('RECEIVED DTO:', dto);
     const { minX, minY, minZ, maxX, maxY, maxZ, ownerType, ownerId, settlementId } = dto;
     const actualMinX = Math.min(minX, maxX);
     const actualMaxX = Math.max(minX, maxX);
@@ -148,7 +149,9 @@ export class TerritoriesService {
       const company = await this.companyRepo.findOne({ where: { id: ownerId } });
       if (!company) throw new BadRequestException('Компания не найдена');
       if (company.settlementId && company.settlementId !== settlementId) {
-        throw new BadRequestException('Территория компании должна находиться в юрисдикции поселения регистрации компании');
+        throw new BadRequestException(
+          'Территория компании должна находиться в юрисдикции поселения регистрации компании',
+        );
       }
     } else if (ownerType === 'settlement') {
       if (ownerId !== settlementId) {
@@ -159,7 +162,7 @@ export class TerritoriesService {
     const territory = this.territoryRepo.create({
       ownerType,
       ownerId,
-      settlementId: settlementId === "null" || !settlementId ? null : settlementId,
+      settlementId: settlementId === 'null' || !settlementId ? null : settlementId,
       minX: actualMinX,
       minY: actualMinY,
       minZ: actualMinZ,
@@ -251,7 +254,23 @@ export class TerritoriesService {
     const stateBordersData: Record<string, unknown> = {};
 
     const settlementGroups: Record<string, { settlement: SettlementEntity; territories: TerritoryEntity[] }> = {};
-    const stateGroups: Record<string, { state: StateEntity; territories: TerritoryEntity[], settlementHulls: { id: string, points: { x: number, z: number }[], minX: number, maxX: number, minZ: number, maxZ: number, minY: number, maxY: number }[] }> = {};
+    const stateGroups: Record<
+      string,
+      {
+        state: StateEntity;
+        territories: TerritoryEntity[];
+        settlementHulls: {
+          id: string;
+          points: { x: number; z: number }[];
+          minX: number;
+          maxX: number;
+          minZ: number;
+          maxZ: number;
+          minY: number;
+          maxY: number;
+        }[];
+      }
+    > = {};
 
     territories.forEach((t) => {
       if (t.settlement) {
@@ -379,10 +398,10 @@ export class TerritoriesService {
             stateGroups[stateId].settlementHulls.push({
               id: Math.random().toString(),
               points: hull,
-              minX: Math.min(...hull.map(p => p.x)),
-              maxX: Math.max(...hull.map(p => p.x)),
-              minZ: Math.min(...hull.map(p => p.z)),
-              maxZ: Math.max(...hull.map(p => p.z)),
+              minX: Math.min(...hull.map((p) => p.x)),
+              maxX: Math.max(...hull.map((p) => p.x)),
+              minZ: Math.min(...hull.map((p) => p.z)),
+              maxZ: Math.max(...hull.map((p) => p.z)),
               minY,
               maxY: Math.max(minY, maxY),
             });
