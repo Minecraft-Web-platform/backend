@@ -7,11 +7,11 @@ export class RegisterDto {
 
   @IsString()
   @IsNotEmpty()
-  @Length(8, 32, { message: 'The length of the password must be between 8 and 32' })
+  @Length(8, 32, { message: 'Длина пароля должна быть от 8 до 32 символов' })
   password: string;
 
   @IsString()
   @IsNotEmpty()
-  @Length(8, 32, { message: 'The length of the repeatPassword must be between 8 and 32' })
+  @Length(8, 32, { message: 'Длина повтора пароля должна быть от 8 до 32 символов' })
   repeatPassword: string;
 }
