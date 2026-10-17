@@ -178,7 +178,7 @@ export class AppService {
       background-image: 
         radial-gradient(ellipse at 50% 38%, rgba(220, 38, 38, 0.26) 0%, rgba(194, 65, 12, 0.18) 45%, rgba(12, 7, 9, 0.76) 100%),
         linear-gradient(rgba(18, 9, 11, 0.45), rgba(12, 6, 8, 0.65)),
-        url('/bg.jpg');
+        url('/bg.jpg?v=2');
       background-position: center;
       background-size: cover;
       background-attachment: fixed;
@@ -201,19 +201,19 @@ export class AppService {
       position: fixed;
       inset: 0;
       background-image: 
-        radial-gradient(ellipse at 50% 45%, rgba(220, 38, 38, 0.16) 0%, rgba(194, 65, 12, 0.1) 40%, rgba(12, 7, 9, 0.5) 100%),
-        linear-gradient(rgba(18, 9, 11, 0.25), rgba(12, 6, 8, 0.42));
+        radial-gradient(ellipse at 50% 45%, rgba(220, 38, 38, 0.12) 0%, rgba(194, 65, 12, 0.06) 40%, rgba(12, 7, 9, 0.35) 100%),
+        linear-gradient(rgba(18, 9, 11, 0.12), rgba(12, 6, 8, 0.28));
       z-index: -1;
       pointer-events: none;
     }
 
     .card {
-      background: rgba(24, 15, 18, 0.85);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(239, 68, 68, 0.28);
+      background: rgba(16, 9, 13, 0.42);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(239, 68, 68, 0.32);
       border-radius: 20px;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75), 0 0 45px rgba(220, 38, 38, 0.16), inset 0 1px 0 rgba(254, 202, 202, 0.08);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 45px rgba(220, 38, 38, 0.14), inset 0 1px 0 rgba(254, 202, 202, 0.12);
       padding: 44px 38px 36px;
       width: 100%;
       max-width: 680px;
@@ -222,6 +222,17 @@ export class AppService {
       align-items: center;
       text-align: center;
       position: relative;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    .card.is-peeking,
+    .card:has(.btn-droplet:hover) {
+      opacity: 0.3 !important;
+    }
+
+    .card.is-hidden-preview {
+      opacity: 0 !important;
+      pointer-events: none;
     }
 
     .badge-status {
@@ -232,9 +243,11 @@ export class AppService {
       border-radius: 20px;
       font-size: 13px;
       font-weight: 600;
-      background: rgba(220, 38, 38, 0.16);
+      background: rgba(220, 38, 38, 0.22);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       color: #fca5a5;
-      border: 1px solid rgba(239, 68, 68, 0.35);
+      border: 1px solid rgba(239, 68, 68, 0.4);
       margin-bottom: 18px;
     }
 
@@ -259,20 +272,23 @@ export class AppService {
       color: #ffffff;
       margin-bottom: 10px;
       letter-spacing: -0.01em;
-      text-shadow: 0 2px 14px rgba(220, 38, 38, 0.45);
+      text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9), 0 0 20px rgba(220, 38, 38, 0.6);
     }
 
     .card__desc {
-      color: #d1a3a4;
+      color: #edd1d2;
       font-size: 14.5px;
       line-height: 1.6;
       margin-bottom: 24px;
       max-width: 540px;
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
     }
 
     .warning-box {
-      background: rgba(194, 65, 12, 0.14);
-      border: 1px solid rgba(234, 88, 12, 0.35);
+      background: rgba(194, 65, 12, 0.16);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(234, 88, 12, 0.4);
       border-left: 4px solid #ea580c;
       border-radius: 12px;
       padding: 14px 18px;
@@ -282,6 +298,7 @@ export class AppService {
       color: #fed7aa;
       line-height: 1.55;
       width: 100%;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
     }
 
     .warning-box strong {
@@ -305,16 +322,18 @@ export class AppService {
       gap: 12px;
       padding: 12px 16px;
       border-radius: 12px;
-      background: rgba(36, 20, 24, 0.65);
-      border: 1px solid rgba(239, 68, 68, 0.16);
+      background: rgba(28, 15, 20, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(239, 68, 68, 0.22);
       text-align: left;
       transition: all 0.15s ease;
     }
 
     .metric-item:hover {
-      border-color: rgba(239, 68, 68, 0.38);
-      background: rgba(50, 26, 32, 0.8);
-      box-shadow: 0 4px 16px rgba(220, 38, 38, 0.15);
+      border-color: rgba(239, 68, 68, 0.48);
+      background: rgba(50, 24, 32, 0.7);
+      box-shadow: 0 4px 16px rgba(220, 38, 38, 0.2);
     }
 
 
@@ -381,6 +400,14 @@ export class AppService {
       width: 100%;
     }
 
+    .action-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+    }
+
     .btn-action {
       background: linear-gradient(135deg, #ef4444 0%, #dc2626 40%, #c2410c 100%);
       color: #ffffff;
@@ -399,6 +426,44 @@ export class AppService {
       background: linear-gradient(135deg, #dc2626 0%, #b91c1c 40%, #9a3412 100%);
       transform: translateY(-1px);
       box-shadow: 0 6px 26px rgba(220, 38, 38, 0.55), 0 0 25px rgba(194, 65, 12, 0.35);
+    }
+
+    .btn-droplet {
+      width: 50px;
+      height: 50px;
+      border-radius: 12px;
+      background: rgba(220, 38, 38, 0.2);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(239, 68, 68, 0.38);
+      color: #fca5a5;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(254, 202, 202, 0.12);
+      padding: 0;
+      flex-shrink: 0;
+      outline: none;
+    }
+
+    .btn-droplet:hover {
+      background: rgba(239, 68, 68, 0.4);
+      color: #ffffff;
+      border-color: rgba(239, 68, 68, 0.7);
+      transform: translateY(-1px) scale(1.05);
+      box-shadow: 0 6px 22px rgba(220, 38, 38, 0.5), 0 0 18px rgba(239, 68, 68, 0.35);
+    }
+
+    .btn-droplet:active {
+      transform: translateY(0) scale(0.95);
+    }
+
+    .btn-droplet svg {
+      width: 22px;
+      height: 22px;
+      filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.4));
     }
 
     .hint-text {
@@ -439,15 +504,19 @@ export class AppService {
       .grid {
         grid-template-columns: 1fr;
       }
-      .btn-action {
+      .action-row {
         width: 100%;
+      }
+      .btn-action {
+        flex: 1;
+        width: auto;
       }
     }
   </style>
 </head>
 <body>
-  <video class="bg-video" autoplay loop muted playsinline poster="/bg.jpg">
-    <source src="/bg.mp4" type="video/mp4">
+  <video class="bg-video" autoplay loop muted playsinline poster="/bg.jpg?v=2">
+    <source src="/bg.mp4?v=2" type="video/mp4">
   </video>
   <div class="bg-overlay"></div>
 
@@ -533,9 +602,16 @@ export class AppService {
     </div>
 
     <div class="action-container">
-      <a href="/healthcheck" class="btn-action">
-        Open /healthcheck
-      </a>
+      <div class="action-row">
+        <a href="/healthcheck" class="btn-action">
+          Open /healthcheck
+        </a>
+        <button id="btn-transparency" class="btn-droplet" type="button" title="Наведите для прозрачности 30%, нажмите для скрытия на 5 секунд" aria-label="Прозрачность">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+          </svg>
+        </button>
+      </div>
       <span class="hint-text">
         Need raw system diagnostics? Query the <code>/healthcheck</code> endpoint
       </span>
@@ -545,6 +621,45 @@ export class AppService {
     </div>
   </div>
 
+  <script>
+    (function() {
+      const droplet = document.getElementById('btn-transparency');
+      const card = document.querySelector('.card');
+      if (!droplet || !card) return;
+
+      let timer = null;
+
+      droplet.addEventListener('mouseenter', function() {
+        if (!card.classList.contains('is-hidden-preview')) {
+          card.classList.add('is-peeking');
+        }
+      });
+
+      droplet.addEventListener('mouseleave', function() {
+        card.classList.remove('is-peeking');
+      });
+
+      droplet.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        card.classList.remove('is-peeking');
+        card.classList.add('is-hidden-preview');
+
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function() {
+          card.classList.remove('is-hidden-preview');
+        }, 5000);
+      });
+
+      // Нажатие в любое место экрана возвращает блок раньше 5 секунд
+      document.addEventListener('click', function() {
+        if (card.classList.contains('is-hidden-preview')) {
+          clearTimeout(timer);
+          card.classList.remove('is-hidden-preview');
+        }
+      });
+    })();
+  </script>
 </body>
 </html>`;
   }

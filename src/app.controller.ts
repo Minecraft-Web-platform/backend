@@ -53,7 +53,7 @@ export class AppController {
     for (const p of possiblePaths) {
       if (fs.existsSync(p)) {
         res.setHeader('Content-Type', 'video/mp4');
-        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         return res.sendFile(p);
       }
     }
